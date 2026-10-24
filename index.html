@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>籌碼選股日報</title>
+<meta name="description" content="每個交易日盤後，依三大法人、千張大戶與融資變化，替上市、上櫃股票計分排名。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
+</head>
+<body>
+<div class="notice" role="note">
+  本站不是證券投資顧問，名單是用公開資料依固定規則篩選的結果，不構成投資建議。<a href="#disclaimer">完整聲明</a>
+</div>
+
+<nav class="tabs" aria-label="頁面區塊">
+  <a href="#picks">今日推薦</a>
+  <a href="#history">歷史清單</a>
+  <a href="#daytrade">當沖熱門</a>
+  <a href="#volume">成交量</a>
+  <a href="#turnover">週轉率</a>
+  <a href="#method">評分方式</a>
+  <a href="#sources">資料來源</a>
+</nav>
+
+<header class="hero" id="top">
+  <p class="hero-date"><span id="data-date">載入中</span> 盤後</p>
+  <h1 class="hero-title"><span>法人</span><span>大戶</span><span>融資</span></h1>
+  <p class="hero-lede">每個交易日收盤後，比對證交所、櫃買中心與集保資料，依三大法人、千張大戶和融資變化計分，上市、上櫃各選 20 檔。</p>
+  <div class="hero-index" id="index-box" hidden>
+    <span class="idx-name">加權指數</span>
+    <span class="idx-close num" id="idx-close"></span>
+    <span class="idx-chg num" id="idx-chg"></span>
+  </div>
+  <div class="weightbar" aria-label="分數組成">
+    <span style="--w:25" class="seg s1">法人當日 25</span>
+    <span style="--w:25" class="seg s2">法人 5 日 25</span>
+    <span style="--w:10" class="seg s3">連買 10</span>
+    <span style="--w:25" class="seg s4">大戶 25</span>
+    <span style="--w:15" class="seg s5">融資 15</span>
+  </div>
+</header>
+
+<main>
+  <section id="picks" class="block">
+    <div class="block-head">
+      <h2 id="picks-title">上市推薦 20 檔</h2>
+      <div class="controls">
+        <div class="seg-ctl" role="group" aria-label="市場" data-group="pickMarket">
+          <button data-v="twse" aria-pressed="true">上市</button>
+          <button data-v="tpex">上櫃</button>
+          <button data-v="all">全部</button>
+        </div>
+        <label class="sort">排序
+          <select id="pick-sort">
+            <option value="score">推薦分數</option>
+            <option value="pct">漲跌幅</option>
+            <option value="vol">成交量</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <dl class="stats" id="pick-stats"></dl>
+    <ol class="picks" id="pick-list"></ol>
+    <p class="hint">點一下個股可展開入選理由與各項得分。</p>
+  </section>
+
+  <section id="history" class="block">
+    <div class="block-head">
+      <h2>歷史清單</h2>
+      <div class="controls">
+        <label class="sort">日期 <select id="hist-date"></select></label>
+        <div class="seg-ctl" role="group" aria-label="市場" data-group="histMarket">
+          <button data-v="twse" aria-pressed="true">上市</button>
+          <button data-v="tpex">上櫃</button>
+        </div>
+      </div>
+    </div>
+    <p class="sub" id="hist-summary"></p>
+    <div class="table-wrap"><table class="grid" id="hist-table"></table></div>
+  </section>
+
+  <section id="daytrade" class="block">
+    <div class="block-head">
+      <h2>當沖熱門標的</h2>
+      <div class="seg-ctl" role="group" aria-label="方向" data-group="dtSide">
+        <button data-v="long" aria-pressed="true">做多 20 檔</button>
+        <button data-v="short">做空 20 檔</button>
+      </div>
+    </div>
+    <p class="sub">上市、上櫃合併排名。</p>
+    <div class="table-wrap"><table class="grid" id="dt-table"></table></div>
+    <p class="hint">「隔日沖賣壓」是用公開資料推估：當天漲 5% 以上、成交量是前 4 日均量 2 倍以上、收在當日高點附近，而且三大法人沒有買超。本站沒有使用券商分點資料。當沖風險很高，名單只是依規則篩選的結果。</p>
+  </section>
+
+  <section id="volume" class="block">
+    <div class="block-head">
+      <h2 id="vol-title">上市成交量前 20 名</h2>
+      <div class="seg-ctl" role="group" aria-label="市場" data-group="volMarket">
+        <button data-v="twse" aria-pressed="true">上市</button>
+        <button data-v="tpex">上櫃</button>
+      </div>
+    </div>
+    <p class="sub">依當日成交張數排名（1 張 = 1,000 股），只計普通股，不含 ETF、權證。</p>
+    <div class="table-wrap"><table class="grid" id="vol-table"></table></div>
+  </section>
+
+  <section id="turnover" class="block">
+    <div class="block-head">
+      <h2 id="turn-title">上市週轉率前 20 名</h2>
+      <div class="seg-ctl" role="group" aria-label="市場" data-group="turnMarket">
+        <button data-v="twse" aria-pressed="true">上市</button>
+        <button data-v="tpex">上櫃</button>
+      </div>
+    </div>
+    <p class="sub">週轉率 = 當日成交股數 ÷ 發行股數。數字越高，當天換手越熱絡，股價波動通常也越大。</p>
+    <div class="table-wrap"><table class="grid" id="turn-table"></table></div>
+  </section>
+
+  <section id="method" class="block prose">
+    <h2>評分方式</h2>
+    <p>滿分 100 分，由五個項目組成。除了連續買超天數，其餘項目都換算成「在當天候選股中的百分位」再乘上權重，所以分數代表的是相對強弱，不是絕對門檻。</p>
+    <table class="grid method">
+      <thead><tr><th>項目</th><th>怎麼算</th><th class="r">滿分</th></tr></thead>
+      <tbody>
+        <tr><td><i class="dot s1"></i>法人當日買超</td><td>三大法人當日買超股數 ÷ 5 日平均成交股數</td><td class="r num">25</td></tr>
+        <tr><td><i class="dot s2"></i>法人 5 日累計</td><td>近 5 個交易日三大法人買超合計 ÷ 5 日均量；累計為賣超得 0 分</td><td class="r num">25</td></tr>
+        <tr><td><i class="dot s3"></i>連續買超天數</td><td>外資或投信連續買超天數取較多者，每天 2 分，5 天以上滿分</td><td class="r num">10</td></tr>
+        <tr><td><i class="dot s4"></i>千張大戶週增減</td><td>持股 1,000 張以上股東的持股比例，與前一週集保資料相比；減少得 0 分</td><td class="r num">25</td></tr>
+        <tr><td><i class="dot s5"></i>融資餘額減少</td><td>融資餘額較前一日的減少幅度；增加得 0 分</td><td class="r num">15</td></tr>
+      </tbody>
+    </table>
+    <p>上市、上櫃分開計分排名，各取前 20 名。入選條件：普通股、5 日均量 1,000 張以上、收盤價 10 元以上、當日三大法人為買超。千張大戶持股達 99% 以上的股票（多半是公開收購或合併完成，市場上幾乎沒有流通籌碼）不列入。</p>
+    <p>當沖熱門的做多分數由漲幅、量增倍數、週轉率、收盤位置與法人買超組成；做空分數則看跌幅、量增、週轉率、是否收在低點與法人賣超，符合「隔日沖賣壓」條件的股票也列入做空名單。</p>
+    <p id="tdcc-note" class="sub"></p>
+  </section>
+
+  <section id="sources" class="block prose">
+    <h2>資料來源</h2>
+    <ul>
+      <li>臺灣證券交易所：每日收盤行情、三大法人買賣超、融資融券餘額、當日沖銷交易</li>
+      <li>證券櫃檯買賣中心：上櫃股票行情、三大法人買賣明細、融資融券餘額、當日沖銷交易</li>
+      <li>臺灣集中保管結算所：集保戶股權分散表（每週更新）</li>
+      <li>證交所國際證券辨識號碼一覽表：產業別與普通股判定</li>
+    </ul>
+    <p class="sub" id="gen-note"></p>
+  </section>
+
+  <section id="disclaimer" class="block prose">
+    <h2>免責聲明</h2>
+    <ol>
+      <li>本站與製作者不是依《證券投資信託及顧問法》核准的證券投資顧問事業，不收取任何費用，內容也不是針對個人財務狀況提供的意見。</li>
+      <li>站內「推薦」、「做多」、「做空」等名單，都是程式依公開資料與固定規則自動篩選、排序的結果，只供研究與學習，不是買賣任何有價證券的建議、招攬或保證。</li>
+      <li>資料取自證交所、櫃買中心、集保結算所的公開資訊，經程式計算整理。本站盡力維持正確，但不保證資料正確、完整或即時；原始機構可能事後更正，請以官方公告為準。「隔日沖賣壓」是依公開資料推估，不是券商分點的實際交易紀錄。</li>
+      <li>投資有風險，可能損失全部本金；當沖與融資融券等信用交易的損失可能超過本金。過去表現不代表未來績效，請依自身財務狀況審慎評估，必要時諮詢合格專業人士，並自行承擔投資結果。</li>
+      <li>任何人因使用本站內容、資料錯誤或遺漏、網站中斷或延遲而產生的直接或間接損失，本站與製作者在法律允許範圍內不負賠償責任。</li>
+      <li>原始資料的權利屬各資料提供機構。本聲明可能隨時修改，以中華民國法律為準據法。</li>
+    </ol>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>籌碼選股日報。資料於每個交易日晚間自動更新。</p>
+</footer>
+
+<script src="assets/app.js" defer></script>
+</body>
+</html>
