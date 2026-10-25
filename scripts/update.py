@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import sources as S  # noqa: E402
 from build import build_site  # noqa: E402
+import txf  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / "data" / "store"
@@ -154,6 +155,10 @@ def main():
         prune()
 
     build_site(ROOT)
+    try:
+        txf.run(ROOT, fetch=not args.build_only)
+    except Exception as e:  # noqa: BLE001
+        log("台指期波浪推算失敗：", e)
 
 
 if __name__ == "__main__":

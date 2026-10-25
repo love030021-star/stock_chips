@@ -215,3 +215,38 @@ select {
 #disclaimer li { font-size: 14px; color: var(--muted); }
 
 .foot { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 40px; border-top: 1px solid var(--line); }
+
+/* ---------- 台指期波浪 ---------- */
+.wave-chart {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 4px 4px; margin-top: 4px;
+}
+.wave-chart svg { display: block; width: 100%; height: auto; }
+.wave-chart .ax { font: 11px var(--num); fill: var(--muted); }
+.wave-chart .grid-l { stroke: var(--line); stroke-width: 1; }
+.wave-chart .zz { fill: none; stroke: var(--s3); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.wave-chart .cnt { fill: none; stroke: var(--ink); stroke-width: 2; }
+.wave-chart .cnt.alt { stroke: var(--s2); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.wave-chart .lbl circle { fill: var(--ink); }
+.wave-chart .lbl text { font: 700 12px var(--num); fill: var(--bg); text-anchor: middle; dominant-baseline: central; }
+.wave-chart .tgt { stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.wave-chart .tgt-t { font: 600 11px var(--num); fill: var(--gold); }
+.wave-chart .inv { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 2 3; }
+.wave-chart .inv-t { font: 600 11px var(--num); fill: var(--muted); }
+.wave-chart .now-t { font: 700 11px var(--num); fill: var(--bg); }
+.wave-chart .now-b { fill: var(--ink); }
+.wave-counts { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-top: 16px; }
+.wave-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.wave-card.alt { background: transparent; }
+.wave-card h3 { margin: 0; font-size: 18px; }
+.wave-card .kind { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+.wave-card p { margin: 0 0 12px; font-size: 14.5px; }
+.wave-card table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.wave-card td { padding: 6px 0; border-top: 1px solid var(--line); }
+.wave-card td.r { text-align: right; font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 600; }
+.wave-card tr.done td { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+.wave-card tr.inv td { color: var(--muted); }
+.fit { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.fit i { display: block; width: 56px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.fit i b { display: block; height: 100%; background: var(--gold); }
+@media (max-width: 760px) { .wave-counts { grid-template-columns: 1fr; } }

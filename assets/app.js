@@ -2,8 +2,8 @@
   "use strict";
   const $ = (s) => document.querySelector(s);
   const MK = { twse: "上市", tpex: "上櫃", all: "全部" };
-  const state = { pickMarket: "twse", histMarket: "twse", dtSide: "long", volMarket: "twse", turnMarket: "twse" };
-  let D = null, H = null;
+  const state = { waveTf: "D", pickMarket: "twse", histMarket: "twse", dtSide: "long", volMarket: "twse", turnMarket: "twse" };
+  let D = null, H = null, W = null;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString("zh-TW", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -14,6 +14,8 @@
     `<td class="stk"><b>${esc(x.name)}</b><small class="num">${esc(x.code)}</small> <small>${esc(x.ind || "")}${x.market && state._showMkt ? "、" + MK[x.market] : ""}</small>${extra}</td>`;
 
   async function load() {
+    fetch(`data/wave.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((w) => { W = w; renderWave(); });
     try {
       const v = Date.now().toString(36);
       [D, H] = await Promise.all([
@@ -45,6 +47,115 @@
       ? `目前使用的集保資料：${t.date}${t.prev ? `，與 ${t.prev} 比較` : "（尚無前一週資料可比較，大戶項目暫時以 0 分計）"}。`
       : "尚未取得集保資料，大戶項目暫時以 0 分計。";
     $("#gen-note").textContent = `本次資料產生時間：${(D.generated_at || "").replace("T", " ")}，使用 ${D.trading_days} 個交易日的歷史資料。`;
+  }
+
+
+  // ---------- 台指期波浪 ----------
+  function renderWave() {
+    const box = $("#wave-chart"), cards = $("#wave-counts");
+    const R = W && W[state.waveTf];
+    if (!R) {
+      $("#wave-meta").textContent = "台指期資料還沒產生，下一次每日更新後會出現。";
+      box.innerHTML = ""; cards.innerHTML = "";
+      return;
+    }
+    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}。轉折門檻 ${R.threshold}。`;
+    box.innerHTML = waveSvg(R);
+    box.dataset.w = box.clientWidth;
+    const [p, a] = R.counts;
+    if (!p) { cards.innerHTML = `<div class="wave-card"><p>目前的轉折點不足以判斷波浪，等走勢更明確後會自動產生推算。</p></div>`; return; }
+    cards.innerHTML = countCard(p, "主要推算", "") + (a ? countCard(a, "替代推算", "alt") : "");
+  }
+
+  let rsz;
+  window.addEventListener("resize", () => {
+    clearTimeout(rsz);
+    rsz = setTimeout(() => { const b = $("#wave-chart"); if (W && Math.abs(b.clientWidth - (+b.dataset.w || 0)) > 20) renderWave(); }, 200);
+  });
+
+  function countCard(c, title, k) {
+    const rows = c.targets.map((t) => `<tr class="${t.reached ? "done" : ""}"><td>${esc(t.name)}${t.reached ? "（已到）" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`).join("");
+    return `<div class="wave-card ${k}">
+      <h3>${title}：${esc(c.now)}</h3>
+      <div class="kind">${esc(c.pattern)} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
+      <p>${esc(c.text)}</p>
+      <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fmt(c.invalid.price)}</td></tr></tbody></table>
+    </div>`;
+  }
+
+  function waveSvg(R) {
+    const W_ = Math.max(300, Math.round($("#wave-chart").clientWidth - 8)), H_ = W_ < 640 ? 320 : 420;
+    const L = 6, Rm = W_ < 640 ? 58 : 74, T = 14, B = 24;
+    const bars = R.bars, n = bars.length;
+    const idx = new Map(bars.map((b, i) => [b[0], i]));
+    const prim = R.counts[0], alt = R.counts[1];
+    let lo = Math.min(...bars.map((b) => b[3])), hi = Math.max(...bars.map((b) => b[2]));
+    const span0 = hi - lo;
+    const lines = [];
+    if (prim) {
+      prim.targets.filter((t) => !t.reached).slice(0, 3).forEach((t) => lines.push({ v: t.price, cls: "tgt", txt: fmt(t.price) }));
+      lines.push({ v: prim.invalid.price, cls: "inv", txt: "失效 " + fmt(prim.invalid.price) });
+    }
+    lines.forEach((l) => { if (l.v > hi && l.v < hi + span0 * 0.6) hi = l.v; if (l.v < lo && l.v > lo - span0 * 0.6) lo = l.v; });
+    const pad = (hi - lo) * 0.05; hi += pad; lo -= pad;
+    const cw = (W_ - L - Rm) / n;
+    const X = (i) => L + cw * (i + 0.5);
+    const Y = (v) => T + (hi - v) / (hi - lo) * (H_ - T - B);
+    let s = `<svg viewBox="0 0 ${W_} ${H_}" xmlns="http://www.w3.org/2000/svg">`;
+    // 格線與座標
+    const step = niceStep((hi - lo) / 6);
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      s += `<line class="grid-l" x1="${L}" x2="${W_ - Rm}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${W_ - Rm + 6}" y="${Y(v) + 4}">${fmt(v)}</text>`;
+    }
+    let lastLab = "", lx = -999;
+    bars.forEach((b, i) => {
+      const lab = R.tf === "D" ? b[0].slice(0, 7).replace("-", "/") : b[0].slice(5, 10).replace("-", "/");
+      if (lab !== lastLab && i > 2) {
+        if (X(i) - lx > 70) { s += `<text class="ax" x="${X(i)}" y="${H_ - 8}" text-anchor="middle">${lab}</text>`; lx = X(i); }
+      }
+      lastLab = lab;
+    });
+    // K 棒（紅漲綠跌）
+    const bw = Math.max(1, cw * 0.62);
+    bars.forEach((b, i) => {
+      const [, o, h, l, c] = b, up = c >= o, col = up ? "var(--up)" : "var(--down)";
+      s += `<line x1="${X(i)}" x2="${X(i)}" y1="${Y(h)}" y2="${Y(l)}" stroke="${col}" stroke-width="1"/>`;
+      s += `<rect x="${X(i) - bw / 2}" y="${Y(Math.max(o, c))}" width="${bw}" height="${Math.max(1, Math.abs(Y(o) - Y(c)))}" fill="${up ? "var(--panel)" : col}" stroke="${col}" stroke-width="1"/>`;
+    });
+    // 全部轉折
+    const zz = R.pivots.filter((p) => idx.has(p[0])).map((p) => `${X(idx.get(p[0]))},${Y(p[1])}`);
+    if (zz.length > 1) s += `<polyline class="zz" points="${zz.join(" ")}"/>`;
+    // 目標價與失效價
+    lines.forEach((l) => {
+      if (l.v < lo || l.v > hi) return;
+      s += `<line class="${l.cls}" x1="${L}" x2="${W_ - Rm}" y1="${Y(l.v)}" y2="${Y(l.v)}"/><text class="${l.cls}-t" x="${W_ - Rm - 4}" y="${Y(l.v) - 4}" text-anchor="end">${l.txt}</text>`;
+    });
+    // 替代推算、主要推算
+    const path = (c, cls) => {
+      const pts = c.points.filter((p) => idx.has(p[0]));
+      if (pts.length > 1) s += `<polyline class="cnt ${cls}" points="${pts.map((p) => `${X(idx.get(p[0]))},${Y(p[1])}`).join(" ")}"/>`;
+    };
+    if (alt) path(alt, "alt");
+    if (prim) {
+      path(prim, "");
+      const pts = prim.points;
+      pts.forEach((p, j) => {
+        if (!idx.has(p[0]) || p[2] === "0") return;
+        const isHigh = j > 0 ? p[1] > pts[j - 1][1] : p[1] > pts[1][1];
+        const y = Y(p[1]) + (isHigh ? -14 : 14);
+        s += `<g class="lbl"><circle cx="${X(idx.get(p[0]))}" cy="${y}" r="${W_ < 640 ? 8 : 9}"/><text x="${X(idx.get(p[0]))}" y="${y}">${esc(p[2])}</text></g>`;
+      });
+    }
+    // 最新價
+    const lc = R.last.c;
+    s += `<rect class="now-b" x="${W_ - Rm + 2}" y="${Y(lc) - 9}" width="${Rm - 4}" height="18" rx="3"/><text class="now-t" x="${W_ - Rm + 6}" y="${Y(lc) + 4}">${fmt(lc)}</text>`;
+    return s + "</svg>";
+  }
+
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
   }
 
   // ---------- 推薦 ----------
@@ -185,11 +296,11 @@
   }
 
   // ---------- 切換按鈕 ----------
-  const renderers = { pickMarket: renderPicks, histMarket: renderHistory, dtSide: renderDaytrade, volMarket: renderVolume, turnMarket: renderTurnover };
+  const renderers = { waveTf: () => renderWave(), pickMarket: renderPicks, histMarket: renderHistory, dtSide: renderDaytrade, volMarket: renderVolume, turnMarket: renderTurnover };
   document.querySelectorAll(".seg-ctl").forEach((g) => {
     g.addEventListener("click", (e) => {
       const b = e.target.closest("button");
-      if (!b || !D) return;
+      if (!b || (g.dataset.group === "waveTf" ? !W : !D)) return;
       g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
       state[g.dataset.group] = b.dataset.v;
       renderers[g.dataset.group]();

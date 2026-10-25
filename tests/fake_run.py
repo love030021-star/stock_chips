@@ -20,6 +20,9 @@ sys.path.insert(0, str(dest / "scripts"))
 
 import sources as S  # noqa: E402
 import update as U  # noqa: E402
+import txf  # noqa: E402
+
+txf.run = lambda root, fetch=True: None  # 台指期另外測試，這裡不連網
 
 S.SLEEP = 0
 random.seed(7)
