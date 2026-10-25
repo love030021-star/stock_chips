@@ -2,7 +2,7 @@
 用下一個較小週期的 123 法則抓進場點（日線→60 分、60 分→30 分、30 分→5 分）。
 
 回檔（反彈）三層，以被修正的那一段走勢計算：
-  強勢回檔：0.382、0.5
+  強勢回檔：0.382、0.44、0.5
   回檔滿足 1：0.618、0.72、0.809
   回檔滿足 2：0.91、0.95
 被修正的走勢：第 2 浪看第 1 浪，第 4 浪看第 3 浪，5 浪走完後看整段 1–5 浪；找不到推動浪時看最近一段走勢。
@@ -84,7 +84,7 @@ def daily_trend(daily: dict, tf: str = "D"):
     return {"d": d, "k": None, "pts": leg or [], "atr": a, "last": last, "last_t": keys[-1], "fallback": True}
 
 
-TIERS = [("強勢回檔", (0.382, 0.5)), ("回檔滿足 1", (0.618, 0.72, 0.809)), ("回檔滿足 2", (0.91, 0.95))]
+TIERS = [("強勢回檔", (0.382, 0.44, 0.5)), ("回檔滿足 1", (0.618, 0.72, 0.809)), ("回檔滿足 2", (0.91, 0.95))]
 
 WAVE_NOW = {1: "第 2 浪回檔", 2: "第 3 浪推進", 3: "第 4 浪回檔", 4: "第 5 浪推進", 5: "5 浪走完後的 ABC 修正"}
 
@@ -105,7 +105,8 @@ def plan_from(T):
 
     def lv(base, span, _ratios, label):
         """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2。"""
-        return [{"ratio": r, "tier": tn, "price": r10(base - d * span * r), "label": f"{label}的 {r:g}"}
+        # 網站上不公開切割比例：只輸出層級、價位與依據的走勢
+        return [{"tier": tn, "price": r10(base - d * span * r), "label": f"依{label}"}
                 for tn, rs in TIERS for r in rs]
 
     phase, note, mult = "correct", None, None
@@ -118,9 +119,9 @@ def plan_from(T):
         leg = abs(x[1] - x[0])
         batches = lv(x[1], leg, (0.382, 0.5, 0.618, 0.786), f"最近一段{'上漲' if up else '下跌'}")
         inv, inv_src = x[0], f"這段走勢起點 {fx(x[0])}（{'跌破' if up else '漲破'}代表高低點結構改變）"
-        deep, deep_src = x[0] - d * leg * 0.272, "起點再延伸這段的 0.272"
+        deep, deep_src = x[0] - d * leg * 0.272, "起點再往外延伸"
         t1, t1s = x[1], f"這段走勢{'高' if up else '低'}點"
-        t2, t2s = x[1] + d * leg * 0.618, "再延伸這段走勢的 0.618"
+        t2, t2s = x[1] + d * leg * 0.618, "這段走勢的延伸目標"
         out["now"] = f"沒有推動浪，依最近一段{'上漲' if up else '下跌'}布局"
         note = f"{tfn}找不到符合規則的推動浪，改用高低點結構判斷為{out['trend']}，以最近一段 {fx(x[0])} → {fx(x[1])} 的回檔區布局。"
         out["points"] = [[t, r10(p), "0" if i == 0 else "1"] for i, (t, p) in enumerate(pts)]
@@ -128,22 +129,22 @@ def plan_from(T):
         w1 = abs(x[1] - x[0])
         batches = lv(x[1], w1, (0.382, 0.5, 0.618, 0.786), "第 1 浪")
         inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}（第 2 浪不可{'跌破' if up else '漲破'}）"
-        deep, deep_src = x[0] - d * w1 * 0.272, "第 1 浪起點再延伸第 1 浪的 0.272"
+        deep, deep_src = x[0] - d * w1 * 0.272, "第 1 浪起點再往外延伸"
         t1, t1s = x[1], f"第 1 浪{'高' if up else '低'}點"
-        t2, t2s = batches[2]["price"] + d * w1 * 1.618, "第 3 浪 = 第 1 浪 × 1.618（自 0.618 回檔處起算）"
+        t2, t2s = x[1] - d * w1 * 0.618 + d * w1 * 1.618, "第 3 浪預估目標"
     elif k == 3:  # 第 4 浪
         w3 = abs(x[3] - x[2])
         batches = lv(x[3], w3, (0.236, 0.382, 0.5, 0.618), "第 3 浪")
         inv, inv_src = x[1], f"第 1 浪{'高' if up else '低'}點 {fx(x[1])}（第 4 浪不可與第 1 浪重疊）"
         deep, deep_src = x[2], f"第 3 浪起點 {fx(x[2])}"
         t1, t1s = x[3], f"第 3 浪{'高' if up else '低'}點"
-        t2, t2s = batches[1]["price"] + d * abs(x[1] - x[0]), "第 5 浪 = 第 1 浪（自 0.382 回檔處起算）"
+        t2, t2s = x[3] - d * w3 * 0.382 + d * abs(x[1] - x[0]), "第 5 浪預估目標"
     elif k == 5:  # 5 浪後 ABC
         tot = abs(x[5] - x[0])
         batches = lv(x[5], tot, (0.382, 0.5, 0.618, 0.786), "第 1–5 浪")
         inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}（整段 5 浪被完全吃回）"
-        deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再延伸整段的 0.272"
-        t1, t1s = x[5] - d * tot * 0.236, "回到第 1–5 浪的 0.236"
+        deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再往外延伸"
+        t1, t1s = x[5] - d * tot * 0.236, "第一個反彈目標" if up else "第一個回落目標"
         t2, t2s = x[5], f"第 5 浪{'高' if up else '低'}點"
     else:        # 第 3、5 浪推進中：不追價，先列出預估的下一個修正區
         phase = "trend"
@@ -161,8 +162,8 @@ def plan_from(T):
         if proj is None:
             proj, ext = last0, True
         wn = "3" if k == 2 else "5"
-        why = (f"已超過第 1 浪 × {mults[-1]:g} 的延伸，暫以現價代替第 {wn} 浪終點" if mult is None else
-               (f"第 5 浪 = 第 1 浪 × {mult:g}" if k == 4 else f"第 1 浪 × {mult:g}") + ("，較小的目標已被越過，視為延伸浪" if ext else ""))
+        why = (f"已超過所有延伸目標，暫以現價代替第 {wn} 浪終點" if mult is None else
+               ("較小的目標已被越過，視為延伸浪" if ext else "依第 1 浪推算"))
         out["extended"] = ext
         if k == 2:
             batches = lv(proj, abs(proj - x[2]), (0.236, 0.382, 0.5, 0.618), "預估第 3 浪")
@@ -170,24 +171,24 @@ def plan_from(T):
             inv, inv_src = x[1], f"第 1 浪{'高' if up else '低'}點 {fx(x[1])}（第 4 浪不可重疊）"
             deep, deep_src = x[2], f"第 3 浪起點 {fx(x[2])}"
             t1, t1s = proj, "預估第 3 浪終點"
-            t2, t2s = batches[1]["price"] + d * w1, "第 5 浪 = 第 1 浪（自預估 0.382 處起算）"
+            t2, t2s = proj - d * abs(proj - x[2]) * 0.382 + d * w1, "第 5 浪預估目標"
         else:
             tot = abs(proj - x[0])
             batches = lv(proj, tot, (0.382, 0.5, 0.618, 0.786), "預估第 1–5 浪")
             note = f"第 5 浪推進中，預估目標 {fx(proj)}（{why}）。5 浪走完後的 ABC 修正區預估如下。"
             inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}"
-            deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再延伸整段的 0.272"
-            t1, t1s = proj - d * tot * 0.236, "回到預估第 1–5 浪的 0.236"
+            deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再往外延伸"
+            t1, t1s = proj - d * tot * 0.236, "第一個反彈目標" if up else "第一個回落目標"
             t2, t2s = proj, "預估第 5 浪終點"
     # 失效停損：結構失效價再往外 0.15 倍 ATR（避開剛好碰到失效價的假跌破）
     stop = r10(inv - d * 0.15 * atr)
     dropped = [b for b in batches if (b["price"] - stop) * d <= 0 or (b["price"] - inv) * d < 0]
     batches = [b for b in batches if b not in dropped] or batches[:1]
     out.update({"phase": phase, "batches": batches, "invalid": r10(inv), "invalid_src": inv_src,
-                "stop": stop, "stop_src": f"失效價 {fx(inv)} 外 0.15 倍 ATR",
+                "stop": stop, "stop_src": f"失效價 {fx(inv)} 外",
                 "t1": r10(t1), "t1_src": t1s, "t2": r10(t2), "t2_src": t2s})
     if dropped:
-        out["dropped"] = [f"{b['tier'] if up else b['tier'].replace('回檔', '反彈')} {b['ratio']:g}（{fx(b['price'])}）" for b in dropped]
+        out["dropped"] = [f"{b['tier'] if up else b['tier'].replace('回檔', '反彈')}（{fx(b['price'])}）" for b in dropped]
     if note:
         out["note"] = note
     zone = sorted([batches[0]["price"], batches[-1]["price"]])

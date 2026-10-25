@@ -221,10 +221,10 @@
     const chain = (P.points || []).map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${fp(p[1])}`).join(" → ");
     steps.push(`<b>方向</b>：${esc(P.tf_label)}數出<b class="${up ? "up" : "down"}">${esc(P.trend)}</b>，目前在「${esc(P.now)}」。${chain ? `轉折：${esc(chain)}。` : ""}${P.vs_major ? `這個波段${esc(P.vs_major)}。` : ""}`);
     if (P.phase === "trend") steps.push(`<b>現在不進場</b>：推動浪還在進行，不追價。預估走到 ${fp(tgt)} 附近後才會出現${wname}，圖上的色帶是預估的${wname}區，等推動浪真的結束會依實際${up ? "高" : "低"}點重算。`);
-    else steps.push(`<b>${wname}怎麼量</b>：以「${esc(base)}」這段走勢的長度，從${up ? "高" : "低"}點往回量比例，得到三層${wname}區。`);
+    else steps.push(`<b>${wname}怎麼量</b>：以「${esc(base.replace(/^依/, ""))}」這段走勢為基準，從${up ? "高" : "低"}點往回推算三層${wname}區。`);
     tiers.forEach((T) => {
       const ps = T.items.map((x) => x.price);
-      steps.push(`<b>${rv(T.name)}</b>（第 ${T.items.map((x) => x.n).join("、")} 批，${fp(Math.min(...ps))}–${fp(Math.max(...ps))}，比例 ${T.items.map((x) => x.ratio).join("／")}）：${esc(rv(TIER_INFO[T.name] || ""))}`);
+      steps.push(`<b>${rv(T.name)}</b>（第 ${T.items.map((x) => x.n).join("、")} 批，${fp(Math.min(...ps))}–${fp(Math.max(...ps))}）：${esc(rv(TIER_INFO[T.name] || ""))}`);
     });
     const G = P.signal;
     steps.push(`<b>進場</b>：價格碰到某一批後，不直接${act}，要等 ${esc(P.entry_tf || "較小週期")} K 走出 123（第 3 點不破第 1 點、收盤${up ? "突破" : "跌破"}第 2 點）才進已碰到的批次。${G && G.text ? "目前：" + esc(G.text) : ""}`);
