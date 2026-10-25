@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251145">
+<link rel="stylesheet" href="assets/style.css?v=202610251210">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -20,7 +20,7 @@
   <a href="#picks">今日推薦</a>
   <a href="#wave">台指期波浪</a>
   <a href="#chips">選擇權籌碼</a>
-  <a href="#strategy">下單策略</a>
+  <a href="#strategy">波段布局</a>
   <a href="#history">歷史清單</a>
   <a href="#daytrade">當沖熱門</a>
   <a href="#volume">成交量</a>
@@ -129,13 +129,26 @@
 
   <section id="strategy" class="block">
     <div class="block-head">
-      <h2>下單策略</h2>
+      <h2>波段逆勢布局</h2>
     </div>
     <p class="sub" id="st-meta">載入中</p>
-    <div class="st-grid" id="st-fut"></div>
-    <h3 class="h3" id="st-opt-title">選擇權</h3>
-    <div class="st-grid" id="st-opt"></div>
-    <p class="hint">由固定規則產生：方向取自各週期波浪推算（依符合度加權）與選擇權籌碼判讀；停損優先用推算失效價，太遠或太近則用 ATR 倍數；目標取方向一致的推算目標價。選擇權權利金用前一交易日結算價，實際下單請以即時報價為準。這不是投資建議，請自行評估風險。</p>
+    <div class="st-trend" id="st-trend"></div>
+    <div class="st-grid">
+      <div class="st-card">
+        <div class="st-head"><h3 id="st-zone-title">回檔區間分批</h3>
+          <label class="sort">商品
+            <select id="st-prod"><option>大台</option><option selected>小台</option><option>微台</option></select>
+          </label>
+        </div>
+        <table class="st-batch"><thead><tr><th>批次</th><th class="r">價位</th><th>依據</th><th class="r">口數</th></tr></thead><tbody id="st-batches"></tbody></table>
+        <div id="st-calc"></div>
+      </div>
+      <div>
+        <div class="st-card" id="st-signal"></div>
+        <div class="st-card" id="st-abc"></div>
+      </div>
+    </div>
+    <p class="hint">規則：日線只數推動浪，判斷上升或下跌與目前浪位。修正浪才逆勢布局：第 2 浪取第 1 浪的 0.5／0.618／0.786，第 4 浪取第 3 浪的 0.236／0.382／0.5，5 浪走完後的 ABC 取整段的 0.382／0.5／0.618，各為一批。價格進入區間後，等 5 分 K 推算轉為布局方向再進該批。停損用波浪規則的失效價。這是程式依規則算出的參考價位，不是投資建議。</p>
   </section>
 
   <section id="history" class="block">
@@ -236,6 +249,6 @@
   <p>籌碼選股日報。資料於每個交易日晚間自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251145" defer></script>
+<script src="assets/app.js?v=202610251210" defer></script>
 </body>
 </html>

@@ -56,50 +56,70 @@
 
 
 
-  // ---------- 下單策略 ----------
+  // ---------- 波段逆勢布局 ----------
+  let SP = null;
   function renderStrategy(S) {
     if (!S) { $("#st-meta").textContent = "策略資料還沒產生，下一次每日更新後會出現。"; return; }
-    $("#st-meta").textContent = `依 ${S.last_t.replaceAll("-", "/")} 的台指期近月 ${fmt(S.last)} 計算，適用下一個交易時段。`;
-    const risk = (r) => `每口風險：大台 ${fmt(r["大台"])}、小台 ${fmt(r["小台"])}、微台 ${fmt(r["微台"])} 元`;
-    const why = (P) => `<ul class="st-why">${P.why.map((w) => `<li><span class="${w.dir > 0 ? "up" : w.dir < 0 ? "down" : ""}">${w.dir > 0 ? "▲" : w.dir < 0 ? "▼" : "●"}</span> ${esc(w.src)}：${esc(w.text)}</li>`).join("")}</ul>`;
-    const card = (P) => {
-      const dcls = P.dir === "做多" ? "up" : P.dir === "做空" ? "down" : "";
-      let body;
-      if (P.dir === "區間") {
-        body = `<p class="st-act">${esc(P.action)}</p><table><tbody>${P.triggers.map((t) => `
-          <tr><th colspan="2" class="${t.side === "做多" ? "up" : "down"}">${t.side}：${esc(t.note)}</th></tr>
-          <tr><td>進場</td><td class="r">${fmt(t.entry)}</td></tr>
-          <tr><td>停損</td><td class="r">${fmt(t.stop)}（${fmt(t.risk_pts)} 點）</td></tr>
-          <tr><td>目標</td><td class="r">${fmt(t.target)}</td></tr>`).join("")}</tbody></table>
-          <p class="st-risk">${risk(P.triggers[0].risk)}</p>`;
-      } else {
-        body = `<p class="st-act ${P.ok ? "" : "warn"}">${esc(P.action)}</p>
-          <table><tbody>
-          <tr><td>進場區</td><td class="r">${fmt(P.zone[0])}–${fmt(P.zone[1])}</td></tr>
-          <tr><td>停損</td><td class="r">${fmt(P.stop)}<small>（${esc(P.stop_src)}）</small></td></tr>
-          <tr><td>目標 1</td><td class="r">${fmt(P.t1)}<small>（${esc(P.t1_src)}）</small></td></tr>
-          <tr><td>目標 2</td><td class="r">${fmt(P.t2)}<small>（${esc(P.t2_src)}）</small></td></tr>
-          <tr><td>風險報酬比</td><td class="r">${P.rr.toFixed(2)}</td></tr>
-          </tbody></table>
-          <p class="st-risk">停損 ${fmt(P.risk_pts)} 點，${risk(P.risk)}</p>
-          <p class="st-exit">${esc(P.exit)}</p>`;
-      }
-      return `<div class="st-card"><div class="st-head"><h3>${P.name}</h3><span class="st-dir ${dcls}">${P.dir}</span></div>
-        ${body}<details><summary>判斷依據（ATR ${fmt(P.atr)} 點）</summary>${why(P)}</details></div>`;
-    };
-    $("#st-fut").innerHTML = card(S.intraday) + card(S.swing);
-    const O = S.options;
-    if (!O || !O.plans.length) { $("#st-opt").innerHTML = `<p class="sub">目前沒有可用的選擇權權利金資料。</p>`; return; }
-    $("#st-opt-title").textContent = `選擇權（${O.contract}，${O.exp} 到期，依波段方向）`;
-    const cpn = (c) => (c === "C" ? "Call" : "Put");
-    $("#st-opt").innerHTML = O.plans.map((p) => `<div class="st-card">
-      <div class="st-head"><h3>${esc(p.title)}</h3><span class="st-dir">${esc(p.kind)}</span></div>
-      <table><tbody>${p.legs.map((l) => `<tr><td>${l[0]} ${fmt(l[2])} ${cpn(l[1])}</td><td class="r">${fmt(l[3], 1)} 點</td></tr>`).join("")}
-      ${p.cost != null ? `<tr><td>權利金支出</td><td class="r">${fmt(p.cost)} 元</td></tr>` : ""}
-      ${p.credit != null ? `<tr><td>權利金收入</td><td class="r">${fmt(p.credit)} 元</td></tr>` : ""}
-      <tr><td>最大虧損</td><td class="r">${fmt(p.max_loss)} 元</td></tr>
-      <tr><td>損益兩平</td><td class="r">${typeof p.breakeven === "number" ? fmt(p.breakeven) : esc(p.breakeven)}</td></tr>
-      </tbody></table><p class="st-exit ${p.weak ? "warn" : ""}">${esc(p.note)}</p></div>`).join("");
+    SP = S;
+    const P = S.plan, up = P.dir === 1;
+    $("#st-meta").textContent = `日線資料到 ${S.daily_t.replaceAll("-", "/")}（收 ${fmt(S.daily_close)}），5 分 K 最新 ${S.last_t.replaceAll("-", "/")}（${fmt(S.last)}）。`;
+    const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fmt(p[1])}`).join(" → ");
+    $("#st-trend").innerHTML = `
+      <div class="st-big ${up ? "up" : P.dir === -1 ? "down" : ""}">
+        <span class="lab">日線大方向</span>
+        <b>${esc(P.trend)}</b>
+        <span class="now">目前：${esc(P.now)}</span>
+      </div>
+      <div class="st-desc">
+        <p>${esc(pts)}</p>
+        <p class="st-act ${P.phase === "correct" ? "" : "warn"}">${esc(P.status || P.text || "")}</p>
+        ${P.note ? `<p class="sub">${esc(P.note)}</p>` : ""}
+        ${P.phase ? `<p class="sub">布局方向：<b class="${up ? "up" : "down"}">${P.side}</b>（逆著目前的${up ? "回檔" : "反彈"}分批進場，順著日線推動浪的方向）。</p>` : ""}
+      </div>`;
+    if (!P.batches) { $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; return; }
+    $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fmt(P.zone[0])}–${fmt(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
+    $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fmt(b.price)}</b></td><td>${esc(b.label)}</td>
+      <td class="r"><input class="lots" type="number" min="0" step="1" value="1" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
+    document.querySelectorAll("#st-batches .lots").forEach((el) => el.addEventListener("input", calcCost));
+    $("#st-prod").onchange = calcCost;
+    calcCost();
+    const G = S.signal;
+    $("#st-signal").innerHTML = `<div class="st-head"><h3>5 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
+      <p>${esc(G ? G.text : "沒有 5 分 K 資料。")}</p>`;
+    $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (S.abc.length ? S.abc.map((a) => {
+      const [o, A, B] = a.points;
+      return `<p>${esc(a.tf)}：A 浪 ${fmt(o[1])} → ${fmt(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fmt(B[1])}，C 浪進行中。</p>
+        <table><tbody>${a.targets.map((t) => {
+          const inZone = P.zone && t.price >= P.zone[0] && t.price <= P.zone[1];
+          return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`;
+        }).join("")}</tbody></table>`;
+    }).join("") : `<p class="sub">60 分、30 分目前沒有進行中的 C 浪可對照。</p>`);
+  }
+
+  function calcCost() {
+    const P = SP.plan, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
+    const lots = [...document.querySelectorAll("#st-batches .lots")].map((el) => Math.max(0, +el.value || 0));
+    const n = lots.reduce((a, b) => a + b, 0);
+    if (!n) { $("#st-calc").innerHTML = `<p class="sub">輸入各批口數即可計算平均成本。</p>`; return; }
+    const avg = P.batches.reduce((a, b, i) => a + b.price * lots[i], 0) / n;
+    const d = P.dir;
+    const loss = (avg - P.stop) * d * n * mult;
+    const g1 = (P.t1 - avg) * d * n * mult, g2 = (P.t2 - avg) * d * n * mult;
+    const rr = loss > 0 ? g1 / loss : 0;
+    let cum = 0, rows = "";
+    P.batches.forEach((b, i) => {
+      if (!lots[i]) return;
+      cum += lots[i];
+      const a = P.batches.slice(0, i + 1).reduce((s, x, j) => s + x.price * lots[j], 0) / cum;
+      rows += `<tr><td>成交到第 ${i + 1} 批</td><td class="r">${cum} 口，均價 ${fmt(a)}</td></tr>`;
+    });
+    $("#st-calc").innerHTML = `<table><tbody>${rows}
+      <tr><td><b>全部成交平均成本</b></td><td class="r"><b>${fmt(avg)}</b></td></tr>
+      <tr><td>停損（${esc(P.stop_src)}）</td><td class="r">${fmt(P.stop)}，虧損 <span class="down">${fmt(loss)}</span> 元</td></tr>
+      <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fmt(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> 元</td></tr>
+      <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fmt(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> 元</td></tr>
+      <tr><td>風險報酬比（目標 1）</td><td class="r">${rr.toFixed(2)}</td></tr>
+      </tbody></table><p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------
