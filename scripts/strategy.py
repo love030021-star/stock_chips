@@ -58,12 +58,22 @@ def daily_trend(daily: dict, tf: str = "D"):
                 "mult": mult, "score": c["score"], "cur": cur and (bars[cur[0]][0], cur[1])}
     # 備援：最近兩個高點、低點的結構
     piv, cur = txf.zigzag(bars, txf.MULTS[tf][1])
-    hs = [p[1] for p in piv if p[2] == "H"][-2:]
-    ls = [p[1] for p in piv if p[2] == "L"][-2:]
+    seq0 = list(piv) + ([cur] if cur else [])   # 目前延伸中的轉折也算進結構
+    hs = [p[1] for p in seq0 if p[2] == "H"][-2:]
+    ls = [p[1] for p in seq0 if p[2] == "L"][-2:]
     d = 0
     if len(hs) == 2 and len(ls) == 2:
         d = 1 if hs[1] > hs[0] and ls[1] > ls[0] else -1 if hs[1] < hs[0] and ls[1] < ls[0] else 0
-    return {"d": d, "k": None, "pts": [], "atr": a, "last": last, "last_t": keys[-1], "fallback": True}
+    # 最近一段順著方向的走勢（上升：最後一個低點到其後高點；下跌反之）
+    leg = None
+    if d:
+        seq = list(piv) + ([cur] if cur else [])
+        for i in range(len(seq) - 1, 0, -1):
+            a0, b0 = seq[i - 1], seq[i]
+            if (d == 1 and a0[2] == "L" and b0[2] == "H") or (d == -1 and a0[2] == "H" and b0[2] == "L"):
+                leg = [(bars[a0[0]][0], a0[1]), (bars[b0[0]][0], b0[1])]
+                break
+    return {"d": d, "k": None, "pts": leg or [], "atr": a, "last": last, "last_t": keys[-1], "fallback": True}
 
 
 WAVE_NOW = {1: "第 2 浪回檔", 2: "第 3 浪推進", 3: "第 4 浪回檔", 4: "第 5 浪推進", 5: "5 浪走完後的 ABC 修正"}
@@ -78,8 +88,33 @@ def plan_from(T):
            "now": WAVE_NOW.get(k, ""), "points": [[t, round(p), str(i)] for i, (t, p) in enumerate(pts)],
            "side": "做多" if up else "做空", "atr": round(atr)}
     if T.get("fallback"):
-        out.update({"trend": {1: "上升趨勢", -1: "下跌趨勢", 0: "方向不明"}[d], "now": "找不到清楚的推動浪",
-                    "phase": "wait", "text": "日線找不到符合規則的推動浪，先不布局。"})
+        out["trend"] = {1: "上升趨勢", -1: "下跌趨勢", 0: "方向不明"}[d]
+        if not d or len(x) < 2:
+            out.update({"now": "找不到清楚的推動浪", "phase": "wait",
+                        "text": "找不到符合規則的推動浪，高低點結構也看不出方向，先不布局。"})
+            return out
+        # 沒有推動浪時，以最近一段走勢的 0.382／0.5／0.618 回檔布局
+        leg = abs(x[1] - x[0])
+        buf = 0.15 * atr
+        batches = [{"ratio": r, "price": r10(x[1] - d * leg * r), "label": f"最近一段{'上漲' if up else '下跌'}的 {r:g}"}
+                   for r in (0.382, 0.5, 0.618)]
+        out.update({"now": f"沒有推動浪，依最近一段{'上漲' if up else '下跌'}布局", "phase": "correct",
+                    "note": f"找不到符合規則的推動浪，改用高低點結構判斷為{out['trend']}，以最近一段 {x[0]:,.0f} → {x[1]:,.0f} 的回檔區布局。",
+                    "batches": batches, "stop": r10(x[0] - d * buf),
+                    "stop_src": f"這段走勢起點 {x[0]:,.0f} 外",
+                    "t1": r10(x[1]), "t1_src": f"這段走勢{'高' if up else '低'}點",
+                    "t2": r10(x[1] + d * leg * 0.618), "t2_src": "再延伸這段走勢的 0.618",
+                    "points": [[t, round(p), "0" if i == 0 else "1"] for i, (t, p) in enumerate(pts)]})
+        zone = sorted([batches[0]["price"], batches[-1]["price"]])
+        out["zone"] = zone
+        last = T["last"]
+        if (last > zone[1]) if up else (last < zone[0]):
+            dist = (last - zone[1]) if up else (zone[0] - last)
+            out["status"] = f"價格 {last:,.0f} 還在回檔區{'上方' if up else '下方'}，距第一批 {batches[0]['price']:,} 約 {dist:,.0f} 點，等待。"
+        elif zone[0] <= last <= zone[1]:
+            out["status"] = f"價格 {last:,.0f} 已進入回檔區，依 5 分 K 訊號分批{'買進' if up else '放空'}。"
+        else:
+            out["status"] = f"價格 {last:,.0f} 已越過最後一批，靠近停損 {out['stop']:,}，不再加碼。"
         return out
     buf = 0.15 * atr
 

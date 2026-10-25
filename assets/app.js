@@ -59,9 +59,17 @@
   // ---------- 波段逆勢布局 ----------
   let SP = null;
   function renderStrategy(S) {
+    try { drawStrategy(S); } catch (e) {
+      console.error(e);
+      $("#st-meta").textContent = "波段布局顯示失敗，請重新整理頁面；若仍無法顯示，可能是資料格式更新中。";
+    }
+  }
+
+  function drawStrategy(S) {
     if (!S) { $("#st-meta").textContent = "策略資料還沒產生，下一次每日更新後會出現。"; return; }
+    if (!S.plans && S.plan) S = Object.assign({}, S, { plans: { D: Object.assign({ tf: "D", tf_label: "日線", data_t: S.daily_t || "", data_close: S.daily_close, abc: S.abc || [], signal: S.signal }, S.plan) } });
     SP = S;
-    const P = S.plans && S.plans[state.stTf];
+    const P = S.plans && (S.plans[state.stTf] || S.plans.D);
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
     $("#st-meta").textContent = `${P.tf_label}資料到 ${P.data_t.replaceAll("-", "/")}（收 ${fmt(P.data_close)}），5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fmt(S.last)}）。`;
@@ -136,7 +144,7 @@
   }
 
   function calcCost() {
-    const P = SP.plans[state.stTf], up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
+    const P = SP.plans[state.stTf] || SP.plans.D, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
     const lots = [...document.querySelectorAll("#st-batches .lots")].map((el) => Math.max(0, +el.value || 0));
     const n = lots.reduce((a, b) => a + b, 0);
     const total = Math.floor(+$("#st-total").value || 0);
