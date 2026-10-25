@@ -18,7 +18,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: daily-update
+  # 只部署網頁（push）不必等資料更新或補歷史跑完
+  group: ${{ github.event_name == 'push' && 'deploy-only' || 'daily-update' }}
   cancel-in-progress: false
 
 jobs:
