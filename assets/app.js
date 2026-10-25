@@ -56,6 +56,89 @@
     document.getElementById("wave").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // ---------- 即時報價 ----------
+  // 比特幣：Kraken WebSocket（秒級）；加權指數：證交所每 5 秒指數（盤中每 30 秒查一次）。其他商品沒有可在瀏覽器直接取得的免費即時報價。
+  const LIVE = { ws: null, timer: null, mkt: null, px: null, t: "", chg: null, src: "", lastDraw: 0 };
+  function liveStop() {
+    if (LIVE.ws) { try { LIVE.ws.onclose = null; LIVE.ws.close(); } catch (e) { /* 略過 */ } LIVE.ws = null; }
+    if (LIVE.timer) { clearInterval(LIVE.timer); LIVE.timer = null; }
+    LIVE.px = null;
+  }
+  function liveZone(px) {
+    if (!SP || !SP.plans) return "";
+    const P = SP.plans[state.stTf] || SP.plans.D;
+    if (!P || !P.batches || !P.batches.length || !P.dir) return "";
+    const up = P.dir === 1, d = P.dir, lab = `${P.tf_label}布局`;
+    const rv = (t) => up ? t : t.replace("回檔", "反彈");
+    if (P.stop != null && (px - P.stop) * d <= 0) return `${lab}：已${up ? "跌破" : "漲破"}失效停損 ${fp(P.stop)}`;
+    if (P.phase === "trend") return `${lab}：推動浪進行中，預估${up ? "回檔" : "反彈"}區 ${fp(P.zone[0])}–${fp(P.zone[1])}`;
+    const hit = P.batches.map((b, i) => [b, i]).filter(([b]) => (px - b.price) * d <= 0);
+    if (!hit.length) return `${lab}：距第 1 批 ${fp(P.batches[0].price)} 還有 ${fp(Math.abs(px - P.batches[0].price))}`;
+    const [b, i] = hit[hit.length - 1];
+    return `${lab}：已到${rv(b.tier || "")}第 ${i + 1} 批 ${fp(b.price)}，等 ${P.entry_tf || "小週期"} K 的 123`;
+  }
+  function liveDraw(force) {
+    const el = $("#live");
+    if (!el) return;
+    const now = Date.now();
+    if (!force && now - LIVE.lastDraw < 800) return;
+    LIVE.lastDraw = now;
+    if (LIVE.px == null) {
+      el.innerHTML = LIVE.src ? `<span class="dot"></span>連線中…（${esc(LIVE.src)}）` : `<span class="dot off"></span>${esc(LIVE.msg || "")}`;
+      el.className = "live";
+      return;
+    }
+    const c = LIVE.chg;
+    el.className = "live on";
+    el.innerHTML = `<span class="dot"></span><b>即時 ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}・${esc(LIVE.src)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
+  }
+  function liveStart(id) {
+    liveStop();
+    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = "";
+    if (id === "BTC") {
+      LIVE.src = "Kraken";
+      const open = () => {
+        const ws = new WebSocket("wss://ws.kraken.com/v2");
+        LIVE.ws = ws;
+        ws.onopen = () => ws.send(JSON.stringify({ method: "subscribe", params: { channel: "ticker", symbol: ["BTC/USD"] } }));
+        ws.onmessage = (e) => {
+          try {
+            const j = JSON.parse(e.data);
+            if (j.channel !== "ticker" || !j.data || !j.data[0]) return;
+            const q = j.data[0];
+            LIVE.px = q.last; LIVE.chg = q.change_pct;
+            LIVE.t = new Date((q.timestamp || "").replace(/(\.\d{3})\d*Z?$/, "$1Z") || Date.now()).toLocaleTimeString("zh-TW", { hour12: false });
+            liveDraw();
+          } catch (err) { /* 略過 */ }
+        };
+        ws.onclose = () => { if (LIVE.mkt === "BTC") setTimeout(() => { if (LIVE.mkt === "BTC" && LIVE.ws === ws) open(); }, 3000); };
+      };
+      open();
+    } else if (id === "TWII") {
+      LIVE.src = "證交所每 5 秒指數";
+      const poll = async () => {
+        try {
+          const r = await fetch(`https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX?response=json&_=${Date.now()}`);
+          const j = await r.json();
+          const rows = (j.data || []).filter((x) => x[1] && x[1] !== "--");
+          if (!rows.length) return;
+          const last = rows[rows.length - 1], first = rows[0];
+          const v = parseFloat(String(last[1]).replace(/,/g, ""));
+          const prev = parseFloat(String(first[1]).replace(/,/g, ""));
+          LIVE.px = v; LIVE.chg = prev ? (v / prev - 1) * 100 : null;
+          const dt = String(j.date || "");
+          LIVE.t = `${dt.slice(4, 6)}/${dt.slice(6, 8)} ${last[0]}`;
+          liveDraw(true);
+        } catch (err) { /* 略過 */ }
+      };
+      poll();
+      LIVE.timer = setInterval(poll, 30000);
+    } else {
+      LIVE.msg = "這個商品沒有可直接取得的免費即時報價，以下為每日更新的資料。";
+    }
+    liveDraw(true);
+  }
+
   async function showMarket(id) {
     state.mkt = id;
     document.querySelectorAll("#mkt-tabs button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === id));
@@ -65,6 +148,7 @@
     W = d.W; SP = null;
     renderWave();
     renderStrategy(d.S);
+    liveStart(id);
     try { localStorage.setItem("mkt", id); } catch (e) { /* 略過 */ }
   }
 
@@ -591,7 +675,7 @@
   }
 
   // ---------- 切換按鈕 ----------
-  const renderers = { stTf: () => renderStrategy(SP), waveTf: () => renderWave() };
+  const renderers = { stTf: () => { renderStrategy(SP); liveDraw(true); }, waveTf: () => renderWave() };
   document.querySelectorAll(".seg-ctl[data-group]").forEach((g) => {
     g.addEventListener("click", (e) => {
       const b = e.target.closest("button");

@@ -380,3 +380,10 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .stk-form input { flex: 1 1 200px; max-width: 280px; font: inherit; padding: 6px 10px; border: 1px solid var(--line, #ccd); border-radius: 8px; background: var(--card, #fff); color: inherit; }
 .stk-form button { font: inherit; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
 .stk-msg { font-size: 13px; color: var(--muted); }
+.live { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; font-size: 14px; color: var(--muted); }
+.live.on b { color: var(--fg, inherit); font-size: 16px; }
+.live small { color: var(--muted); }
+.live .lz { flex-basis: 100%; font-weight: 600; color: var(--fg, inherit); }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: #2e9d5b; display: inline-block; align-self: center; animation: livepulse 1.6s infinite; }
+.live .dot.off { background: var(--muted); animation: none; opacity: .5; }
+@keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
