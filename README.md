@@ -13,7 +13,8 @@
 | `index.html`、`assets/` | 網站頁面 |
 | `scripts/update.py` | 每日流程 |
 | `scripts/txf.py` | 台指期資料（期交所）與波浪推算核心 |
-| `scripts/markets.py` | 其他商品資料（Yahoo Finance、櫃買中心）與推算 |
+| `scripts/markets.py` | 其他商品資料（證交所、櫃買中心、TradingView 匯入檔）與推算 |
+| `scripts/tv_import.py` | 把 Claude 對話紀錄中 TradingView 連接器回傳的 K 線存成 `data/store/tv/*.json` |
 | `scripts/strategy.py` | 波段逆勢布局規則 |
 | `scripts/chips.py` | 台指選擇權籌碼 |
 | `data/` | 網站讀取的結果與原始資料 |
@@ -24,5 +25,6 @@
 
 ## 注意
 
-- 櫃買指數官方沒有盤中 K 線，只做日線。
+- 小娜、黃金、布蘭特原油與櫃買指數盤中 K 線來自 TradingView，GitHub Actions 無法直接取得，需在 Claude 對話中用 TradingView 連接器抓取後執行 `tv_import.py` 再推送。
+- Yahoo Finance 會擋 GitHub Actions（429），只在沒有 TradingView 檔案時才嘗試。
 - 本站不是證券或期貨投資顧問，內容只是規則計算結果，不構成投資建議。

@@ -27,13 +27,13 @@ UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
 MARKETS = [
     {"id": "TWII", "name": "加權指數", "twse": True, "session": "現貨盤（09:00–13:30）",
      "pt": {"點數": 1}, "unit": "點"},
-    {"id": "TPEX", "name": "櫃買指數", "tpex": True, "session": "現貨盤",
+    {"id": "TPEX", "name": "櫃買指數", "tpex": True, "tv": "TPEX_IX0043", "session": "現貨盤",
      "pt": {"點數": 1}, "unit": "點"},
-    {"id": "MNQ", "name": "小娜（微型那斯達克 MNQ）", "yahoo": "MNQ=F", "session": "CME 全時段",
+    {"id": "MNQ", "name": "小娜（微型那斯達克 MNQ）", "yahoo": "MNQ=F", "tv": "CME_MINI_MNQ1", "session": "CME 全時段",
      "pt": {"MNQ（美元）": 2, "NQ（美元）": 20}, "unit": "美元"},
-    {"id": "GOLD", "name": "1oz 黃金（1OZ）", "yahoo": "1OZ=F", "daily_from_60m": True, "session": "CME 全時段",
+    {"id": "GOLD", "name": "1oz 黃金（1OZ）", "yahoo": "1OZ=F", "tv": "COMEX_1OZ1", "daily_from_60m": True, "session": "CME 全時段",
      "pt": {"1OZ（美元）": 1, "MGC 10oz（美元）": 10}, "unit": "美元"},
-    {"id": "BRENT", "name": "布蘭特原油（BZ）", "yahoo": "BZ=F", "session": "全時段",
+    {"id": "BRENT", "name": "布蘭特原油（BZ）", "yahoo": "BZ=F", "tv": "ICEEUR_BRN1", "session": "全時段",
      "pt": {"BZ 1000 桶（美元）": 1000}, "unit": "美元"},
 ]
 
@@ -253,13 +253,52 @@ def tpex_daily(months=26):
     return out
 
 
+# ---------------- TradingView（由 scripts/tv_import.py 存入） ----------------
+
+TV_IV = {"D": "1D", "H": "1h", "M30": "30m", "M5": "5m"}
+
+
+def tv_load(root: Path, prefix: str) -> dict:
+    """讀 data/store/tv/<prefix>_<週期>.json（[[utc秒, o, h, l, c], ...]）。
+    日 K 的時間是交易時段開始（例如 CME 前一晚 18:00 美東），加 6 小時後取 UTC 日期即交易日。"""
+    tfs = {}
+    for tf, iv in TV_IV.items():
+        p = root / "data" / "store" / "tv" / f"{prefix}_{iv}.json"
+        if not p.exists():
+            continue
+        rows = json.loads(p.read_text(encoding="utf-8"))
+        if tf == "D":
+            out = {}
+            for t, o, h, l, c in sorted(rows):
+                dt = datetime.fromtimestamp(t + 6 * 3600, timezone.utc)
+                while dt.weekday() >= 5:          # 週末零星成交併入週五
+                    dt -= timedelta(days=1)
+                k = dt.strftime("%Y-%m-%d")
+                b = out.get(k)
+                if b is None:
+                    out[k] = [o, h, l, c, 0]
+                else:
+                    b[1], b[2], b[3] = max(b[1], h), min(b[2], l), c
+            tfs[tf] = out
+        else:
+            tfs[tf] = to_map_intraday(rows)
+    return tfs
+
+
 # ---------------- 主流程 ----------------
 
-def fetch(m, store: Path):
+def fetch(m, store: Path, root: Path):
     tfs = {}
+    tv = tv_load(root, m["tv"]) if m.get("tv") else {}
     if m.get("tpex"):
         tfs["D"] = tpex_daily()
+        for tf in ("H", "M30", "M5"):
+            if tf in tv:
+                tfs[tf] = tv[tf]
         return tfs
+    if "D" in tv and "H" in tv:
+        m["source"] = "TradingView"
+        return tv
     if m.get("twse"):
         tfs["D"] = twse_daily()
         m5 = twse_intraday(store, sorted(tfs["D"]))
@@ -308,7 +347,7 @@ def run(root: Path):
     index, errors = [], {}
     for m in MARKETS:
         try:
-            tfs = fetch(m, root / "data" / "store" / "markets")
+            tfs = fetch(m, root / "data" / "store" / "markets", root)
             W = analyze_market(m, tfs)
             _dump(out_dir / f"{m['id']}.json", W)
             _dump(root / "data" / "store" / "markets" / f"{m['id']}_D.json",

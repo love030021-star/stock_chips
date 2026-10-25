@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251410">
+<link rel="stylesheet" href="assets/style.css?v=202610251530">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -133,10 +133,11 @@
     <h2>資料來源</h2>
     <ul>
       <li>臺灣期貨交易所：台指期每日行情與逐筆成交（日線、5／30／60 分 K）、三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日行情</li>
+      <li>臺灣證券交易所：加權指數日線與每 5 秒指數（組成 5／30／60 分 K）</li>
       <li>證券櫃檯買賣中心：櫃買指數日線</li>
-      <li>Yahoo Finance：加權指數、小娜（MNQ）、1oz 黃金（1OZ）、布蘭特原油（BZ）的日線與盤中 K 線</li>
+      <li>TradingView（站長帳號匯入）：櫃買指數盤中 K 線，小娜（CME MNQ1!）、1oz 黃金（COMEX 1OZ1!）、布蘭特原油（ICE BRN1!）的日線與 60／30／5 分 K</li>
     </ul>
-    <p class="sub">台指期日線為全日盤（前一晚夜盤＋當天日盤）。櫃買指數官方沒有提供盤中 K 線，只做日線。資料每個交易日晚間與隔天清晨自動更新。</p>
+    <p class="sub">台指期日線為全日盤（前一晚夜盤＋當天日盤）。台股與期交所資料每個交易日晚間自動更新；小娜、黃金、原油與櫃買盤中 K 線由 TradingView 匯入，更新時間以各圖表標示的資料時間為準。</p>
   </section>
 
   <section id="disclaimer" class="block prose">
@@ -144,7 +145,7 @@
     <ol>
       <li>本站與製作者不是依法核准的證券投資顧問或期貨顧問事業，不收取任何費用，內容也不是針對個人財務狀況提供的意見。</li>
       <li>站內的波浪推算、籌碼判讀、回檔區間與分批價位，都是程式依公開資料與固定規則自動計算的結果，只供研究與學習，不是買賣任何商品的建議、招攬或保證。</li>
-      <li>資料取自期交所、櫃買中心與 Yahoo Finance，本站盡力維持正確，但不保證資料正確、完整或即時，請以官方公告與券商報價為準。</li>
+      <li>資料取自期交所、證交所、櫃買中心與 TradingView，本站盡力維持正確，但不保證資料正確、完整或即時，請以官方公告與券商報價為準。</li>
       <li>期貨與選擇權為高槓桿商品，損失可能超過原始保證金。過去表現不代表未來績效，請依自身財務狀況審慎評估，並自行承擔交易結果。</li>
       <li>任何人因使用本站內容、資料錯誤或遺漏、網站中斷或延遲而產生的直接或間接損失，本站與製作者在法律允許範圍內不負賠償責任。</li>
     </ol>
@@ -155,6 +156,6 @@
   <p>波浪籌碼日報。資料於每個交易日晚間與隔天清晨自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251410" defer></script>
+<script src="assets/app.js?v=202610251530" defer></script>
 </body>
 </html>

@@ -1,1 +1,1 @@
-[{"id":"TWII","name":"加權指數","tfs":["D","H","M30","M5"]},{"id":"TPEX","name":"櫃買指數","tfs":["D"]}]
+[{"id":"TWII","name":"加權指數","tfs":["D","H","M30","M5"]},{"id":"TPEX","name":"櫃買指數","tfs":["D"]},{"id":"MNQ","name":"小娜（微型那斯達克 MNQ）","tfs":["D","H","M30","M5"]},{"id":"GOLD","name":"1oz 黃金（1OZ）","tfs":["D","H","M30","M5"]},{"id":"BRENT","name":"布蘭特原油（BZ）","tfs":["D","H","M30","M5"]}]

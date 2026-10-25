@@ -158,21 +158,37 @@ def plan_from(T):
         t2, t2s = x[5], f"第 5 浪{'高' if up else '低'}點"
         phase = "correct"
     else:        # 第 3、5 浪推進中
+        last0 = T["last"]
+        w1 = abs(x[1] - x[0])
+        base = x[2] if k == 2 else x[4]
+        mults = (1.618, 2.618, 4.236) if k == 2 else (1.0, 1.618, 2.618)
+        proj, mult = None, None
+        for m_ in mults:            # 價格已越過較小的目標就改用下一個延伸比例
+            p_ = base + d * w1 * m_
+            if (p_ - last0) * d > 0:
+                proj, mult = p_, m_
+                break
+        ext = mult is not None and mult != mults[0]
+        if proj is None:            # 全部越過：以目前價位暫代浪頂
+            proj, mult, ext = last0, None, True
+        wn = "3" if k == 2 else "5"
+        if mult is None:
+            why = f"已超過第 1 浪 × {mults[-1]:g} 的延伸，暫以現價代替第 {wn} 浪終點"
+        else:
+            why = (f"第 {wn} 浪 = 第 1 浪 × {mult:g}" if k == 4 else f"第 1 浪 × {mult:g}") + ("，較小的目標已被越過，視為延伸浪" if ext else "")
         if k == 2:
-            w1 = abs(x[1] - x[0])
-            proj = x[2] + d * w1 * 1.618
             batches = lv(proj, abs(proj - x[2]), (0.236, 0.382, 0.5), "預估第 3 浪")
-            note = f"第 3 浪推進中，預估目標 {fx(proj)}（第 1 浪 × 1.618）。到達後的第 4 浪回檔區預估如下，屆時依實際高點重算。"
+            note = f"第 3 浪推進中，預估目標 {fx(proj)}（{why}）。到達後的第 4 浪回檔區預估如下，屆時依實際高點重算。"
             stop, stop_src = x[1] - d * buf, f"第 1 浪{'高' if up else '低'}點 {fx(x[1])} 外"
         else:
-            proj = x[4] + d * abs(x[1] - x[0])
             batches = lv(proj, abs(proj - x[0]), (0.382, 0.5, 0.618), "預估第 1–5 浪")
-            note = f"第 5 浪推進中，預估目標 {fx(proj)}（第 5 浪 = 第 1 浪）。5 浪走完後的 ABC 修正區預估如下。"
+            note = f"第 5 浪推進中，預估目標 {fx(proj)}（{why}）。5 浪走完後的 ABC 修正區預估如下。"
             stop, stop_src = proj - d * abs(proj - x[0]) * 0.786 - d * buf, "預估第 1–5 浪的 0.786 外"
+        out["extended"] = ext
         if k == 2:
             mid = batches[1]["price"]
             t1, t1s = proj, "預估第 3 浪終點"
-            t2, t2s = mid + d * abs(x[1] - x[0]), "第 5 浪 = 第 1 浪（自預估 0.382 處起算）"
+            t2, t2s = mid + d * w1, "第 5 浪 = 第 1 浪（自預估 0.382 處起算）"
         else:
             t1, t1s = proj - d * abs(proj - x[0]) * 0.236, "回到預估第 1–5 浪的 0.236"
             t2, t2s = proj, "預估第 5 浪終點"
@@ -197,11 +213,13 @@ def plan_from(T):
     else:
         last = T["last"]
         z = f"{fx(zone[0])}–{fx(zone[1])}"
+        ex = "（已走成延伸浪）" if out.get("extended") else ""
+        tgt = fx(proj) if mult is not None else "未定"
         if k == 2:
-            out["status"] = (f"第 3 浪還在{'往上' if up else '往下'}，預估先到 {fx(t1)}，之後第 4 浪{'回檔' if up else '反彈'}到 {z} 才分批"
+            out["status"] = (f"第 3 浪還在{'往上' if up else '往下'}{ex}，預估先到 {tgt}，之後第 4 浪{'回檔' if up else '反彈'}到 {z} 才分批"
                              f"{'買進' if up else '放空'}。現在 {fx(last)} 不進場。")
         else:
-            out["status"] = (f"第 5 浪還在{'往上' if up else '往下'}，預估到 {fx(t2)} 附近結束，之後的 ABC {'回檔' if up else '反彈'}到 {z} 才分批"
+            out["status"] = (f"第 5 浪還在{'往上' if up else '往下'}{ex}，預估到 {tgt} 附近結束，之後的 ABC {'回檔' if up else '反彈'}到 {z} 才分批"
                              f"{'買進' if up else '放空'}。現在 {fx(last)} 不進場。")
     return out
 
