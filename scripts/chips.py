@@ -186,10 +186,10 @@ def walls(strikes: dict, data_date: str, price: float):
     weekly = [(k, v) for k, v in strikes.items() if not re.fullmatch(r"\d{6}", k) and v["exp"] > d0]
     monthly = [(k, v) for k, v in strikes.items() if re.fullmatch(r"\d{6}", k) and v["exp"] > d0]
     if weekly:
-        # 10 天內到期的週選中，未平倉最多的一個（避開隔天就到期、部位已大量平倉的合約）
-        limit = (datetime.strptime(d0, "%Y%m%d") + timedelta(days=10)).strftime("%Y%m%d")
-        near = [w for w in weekly if w[1]["exp"] <= limit] or weekly
-        res["weekly"] = max(near, key=lambda kv: sum(kv[1]["C"].values()) + sum(kv[1]["P"].values()))
+        # 跳過隔天就到期的週選（部位多已平倉），取其後最近到期的一個
+        skip = (datetime.strptime(d0, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
+        near = [w for w in weekly if w[1]["exp"] > skip] or weekly
+        res["weekly"] = min(near, key=lambda kv: kv[1]["exp"])
     if monthly:
         res["monthly"] = min(monthly, key=lambda kv: kv[1]["exp"])
     out = {}
