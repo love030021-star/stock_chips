@@ -63,34 +63,72 @@ def _col(fields, *names):
     raise KeyError(names)
 
 
+def _table(j):
+    """證交所 rwd 回傳可能是 {fields, data} 或 {tables: [{fields, data}]}。"""
+    if j.get("fields"):
+        return j["fields"], j.get("data") or []
+    for t in j.get("tables") or []:
+        if t.get("fields") and t.get("data"):
+            return t["fields"], t["data"]
+    return [], []
+
+
 def day_all():
-    """當天所有上市股票：回傳 (日期, {代號: (名稱, [o,h,l,c,v])})。"""
-    j = markets._get(f"{TWSE}/STOCK_DAY_ALL", {"response": "json"}).json()
-    fields = j.get("fields") or []
-    rows = j.get("data") or []
-    d = j.get("date") or ""
-    d = f"{d[:4]}-{d[4:6]}-{d[6:8]}" if len(d) == 8 else date.today().isoformat()
-    ic, inm = _col(fields, "代號"), _col(fields, "名稱")
-    io, ih, il, icl, iv = (_col(fields, "開盤"), _col(fields, "最高"), _col(fields, "最低"),
-                           _col(fields, "收盤"), _col(fields, "成交股數"))
-    out = {}
-    for r in rows:
-        try:
-            out[r[ic].strip()] = (r[inm].strip(), [_num(r[io]), _num(r[ih]), _num(r[il]), _num(r[icl]), _num(r[iv])])
-        except (ValueError, IndexError):
-            continue
-    return d, out
+    """當天所有上市股票：回傳 (日期, {代號: (名稱, [o,h,l,c,v])})。先試 rwd，再試 openapi。"""
+    errs = []
+    try:
+        j = markets._get(f"{TWSE}/STOCK_DAY_ALL", {"response": "json"}).json()
+        fields, rows = _table(j)
+        d = str(j.get("date") or "")
+        d = f"{d[:4]}-{d[4:6]}-{d[6:8]}" if len(d) == 8 else date.today().isoformat()
+        ic, inm = _col(fields, "代號"), _col(fields, "名稱")
+        io, ih, il, icl, iv = (_col(fields, "開盤"), _col(fields, "最高"), _col(fields, "最低"),
+                               _col(fields, "收盤"), _col(fields, "成交股數"))
+        out = {}
+        for r in rows:
+            try:
+                out[r[ic].strip()] = (r[inm].strip(), [_num(r[io]), _num(r[ih]), _num(r[il]), _num(r[icl]), _num(r[iv])])
+            except (ValueError, IndexError):
+                continue
+        if out:
+            return d, out
+        errs.append(f"rwd 無資料：{str(j)[:300]}")
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"rwd：{e}")
+    try:
+        rows = markets._get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL").json()
+        out, d = {}, ""
+        for r in rows:
+            try:
+                out[r["Code"].strip()] = (r["Name"].strip(), [_num(r["OpeningPrice"]), _num(r["HighestPrice"]),
+                                                              _num(r["LowestPrice"]), _num(r["ClosingPrice"]),
+                                                              _num(r["TradeVolume"])])
+                d = d or str(r.get("Date") or "")
+            except (ValueError, KeyError):
+                continue
+        if d and len(d) == 7:   # 民國年 1141024
+            d = f"{int(d[:3]) + 1911}-{d[3:5]}-{d[5:7]}"
+        elif len(d) == 8:
+            d = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+        else:
+            d = date.today().isoformat()
+        if out:
+            return d, out
+        errs.append("openapi 無資料")
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"openapi：{e}")
+    raise RuntimeError("；".join(errs))
 
 
 def month_bars(code: str, ym: date) -> dict:
     j = markets._get(f"{TWSE}/STOCK_DAY", {"date": ym.strftime("%Y%m01"), "stockNo": code, "response": "json"}).json()
-    fields = j.get("fields") or []
+    fields, rows = _table(j)
     out = {}
     if not fields:
         return out
     idt, io, ih, il, icl, iv = (_col(fields, "日期"), _col(fields, "開盤"), _col(fields, "最高"),
                                 _col(fields, "最低"), _col(fields, "收盤"), _col(fields, "成交股數"))
-    for r in j.get("data") or []:
+    for r in rows:
         try:
             out[_roc(r[idt])] = [_num(r[io]), _num(r[ih]), _num(r[il]), _num(r[icl]), _num(r[iv])]
         except (ValueError, IndexError):
@@ -203,14 +241,26 @@ def run(backfill_minutes: float = 6):
     analyze_all(lst)
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backfill", type=float, default=None, help="只補歷史，最多幾分鐘")
     a = ap.parse_args()
     if a.backfill:
         _d, rows = day_all()
         lst = universe(rows)
+        log("名單", len(lst), "檔")
         backfill([c for c, _ in lst], a.backfill)
         analyze_all(lst)
     else:
         run()
+
+
+if __name__ == "__main__":
+    import traceback
+    try:
+        main()
+        markets._dump(OUT / "_errors.json", {"at": datetime.now().isoformat(timespec="minutes"), "error": None})
+    except Exception:  # noqa: BLE001
+        tb = traceback.format_exc()
+        print(tb, flush=True)
+        markets._dump(OUT / "_errors.json", {"at": datetime.now().isoformat(timespec="minutes"), "error": tb[-3000:]})
