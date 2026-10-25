@@ -1,15 +1,13 @@
-"""波段逆勢布局（不設停損）：只用日線轉折判斷推動浪方向與浪位，在修正浪的區間分四批布局，60 分 K 抓進場點。
+"""波段逆勢布局（不設停損）：日線、60 分、30 分各自數推動浪，在修正浪的區間分三層布局，
+用下一個較小週期的 123 法則抓進場點（日線→60 分、60 分→30 分、30 分→5 分）。
 
-規則：
-  1. 日線只數推動浪（三種轉折門檻取分數最高者），判斷是上升或下跌推動浪、目前在第幾浪。
-     找不到推動浪時，用最近的高低點結構判斷方向。
-  2. 修正浪才布局（逆勢），各分四批、不設停損：
-       第 2 浪：第 1 浪的 0.382、0.5、0.618、0.786。
-       第 4 浪：第 3 浪的 0.236、0.382、0.5、0.618。
-       5 浪走完後的 ABC：整段 1–5 浪的 0.382、0.5、0.618、0.786。
-     推動浪進行中（第 3、5 浪）不追價，先列出預估的下一個修正區。
-  3. 波浪規則的失效價不當停損，只當「停止加碼、重新數浪」的位置，並算出到失效價與更深一段的浮動虧損（壓力測試）。
-  4. 價格進入布局區後，用 60 分 K 的 123 法則確認回檔結束（第 3 點不破第 1 點、收盤突破第 2 點）才進已碰到的批次；\n     60 分 K 若有逆向 ABC，列出 C 浪目標對照。
+回檔（反彈）三層，以被修正的那一段走勢計算：
+  強勢回檔：0.382、0.5
+  回檔滿足 1：0.618、0.72、0.809
+  回檔滿足 2：0.91、0.95
+被修正的走勢：第 2 浪看第 1 浪，第 4 浪看第 3 浪，5 浪走完後看整段 1–5 浪；找不到推動浪時看最近一段走勢。
+推動浪進行中（第 3、5 浪）不追價，先列出預估的下一個修正區。
+波浪規則的失效價不當停損，只當「停止加碼、重新數浪」的位置，並算出浮動虧損（壓力測試）。
 
 輸出 data/strategy.json。規則產生的價位只是參考，不是投資建議。
 """
@@ -86,32 +84,37 @@ def daily_trend(daily: dict, tf: str = "D"):
     return {"d": d, "k": None, "pts": leg or [], "atr": a, "last": last, "last_t": keys[-1], "fallback": True}
 
 
+TIERS = [("強勢回檔", (0.382, 0.5)), ("回檔滿足 1", (0.618, 0.72, 0.809)), ("回檔滿足 2", (0.91, 0.95))]
+
 WAVE_NOW = {1: "第 2 浪回檔", 2: "第 3 浪推進", 3: "第 4 浪回檔", 4: "第 5 浪推進", 5: "5 浪走完後的 ABC 修正"}
 
 
 def plan_from(T):
-    """不設停損的分批布局：每個修正區四批，越深越接近波浪規則的失效價。
+    """不設停損的分批布局：每個修正區分三層七批，越深越接近波浪規則的失效價。
     失效價不是停損，而是「數浪被推翻」的位置：到了就停止加碼、等日線重新數浪。"""
     global STEP
     d, k, pts, atr = T["d"], T["k"], T["pts"], T["atr"]
     ref = abs(T["last"])
     STEP = 10 if ref >= 10000 else 1 if ref >= 1000 else 0.1 if ref >= 100 else 0.01
     up = d == 1
+    tfn = T.get("tfn", "日線")
     x = [p[1] for p in pts]
     hl = "低" if up else "高"
     out = {"trend": "上升推動浪" if up else "下跌推動浪", "dir": d, "k": k,
            "now": WAVE_NOW.get(k, ""), "points": [[t, r10(p), str(i)] for i, (t, p) in enumerate(pts)],
            "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr), "nostop": True}
 
-    def lv(base, span, ratios, label):
-        return [{"ratio": r, "price": r10(base - d * span * r), "label": f"{label}的 {r:g}"} for r in ratios]
+    def lv(base, span, _ratios, label):
+        """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2。"""
+        return [{"ratio": r, "tier": tn, "price": r10(base - d * span * r), "label": f"{label}的 {r:g}"}
+                for tn, rs in TIERS for r in rs]
 
     phase, note, mult = "correct", None, None
     if T.get("fallback"):
         out["trend"] = {1: "上升趨勢", -1: "下跌趨勢", 0: "方向不明"}[d]
         if not d or len(x) < 2:
             out.update({"now": "找不到清楚的推動浪", "phase": "wait",
-                        "text": "日線找不到符合規則的推動浪，高低點結構也看不出方向，先不布局。"})
+                        "text": f"{tfn}找不到符合規則的推動浪，高低點結構也看不出方向，先不布局。"})
             return out
         leg = abs(x[1] - x[0])
         batches = lv(x[1], leg, (0.382, 0.5, 0.618, 0.786), f"最近一段{'上漲' if up else '下跌'}")
@@ -120,7 +123,7 @@ def plan_from(T):
         t1, t1s = x[1], f"這段走勢{'高' if up else '低'}點"
         t2, t2s = x[1] + d * leg * 0.618, "再延伸這段走勢的 0.618"
         out["now"] = f"沒有推動浪，依最近一段{'上漲' if up else '下跌'}布局"
-        note = f"日線找不到符合規則的推動浪，改用高低點結構判斷為{out['trend']}，以最近一段 {fx(x[0])} → {fx(x[1])} 的回檔區布局。"
+        note = f"{tfn}找不到符合規則的推動浪，改用高低點結構判斷為{out['trend']}，以最近一段 {fx(x[0])} → {fx(x[1])} 的回檔區布局。"
         out["points"] = [[t, r10(p), "0" if i == 0 else "1"] for i, (t, p) in enumerate(pts)]
     elif k == 1:   # 第 2 浪
         w1 = abs(x[1] - x[0])
@@ -195,10 +198,12 @@ def plan_from(T):
             dist = (last - zone[1]) if up else (zone[0] - last)
             out["status"] = f"價格 {fx(last)} 還在{'回檔' if up else '反彈'}區{'上方' if up else '下方'}，距第一批 {fx(batches[0]['price'])} 約 {fx(dist)} 點，等待。"
         elif inside:
-            out["status"] = f"價格 {fx(last)} 已進入{'回檔' if up else '反彈'}區，等 60 分 K 出現 123 確認再分批{act}。"
+            hit = [b for b in batches if (last <= b["price"] if up else last >= b["price"])]
+            tier = hit[-1]["tier"] if hit else batches[0]["tier"]
+            out["status"] = f"價格 {fx(last)} 已進入{tier}，等 {T.get('lower_label', '小週期')} K 出現 123 確認再分批{act}。"
         elif broke:
-            out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}結構失效價 {fx(r10(inv))}，日線數浪被推翻，"
-                             f"停止加碼，已有部位抱單等日線重新數浪。")
+            out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}結構失效價 {fx(r10(inv))}，{tfn}數浪被推翻，"
+                             f"停止加碼，已有部位抱單等{tfn}重新數浪。")
         else:
             out["status"] = f"價格 {fx(last)} 已越過最後一批，不再加碼；不停損，持有到目標，{'跌破' if up else '漲破'} {fx(r10(inv))} 才算數浪錯誤。"
     else:
@@ -214,7 +219,9 @@ def plan_from(T):
     return out
 
 
-LOWER = {"D": ("H",)}
+LOWER = {"D": ("H",), "H": ("M30",), "M30": ("M5",)}
+ENTRY_TF = {"D": "H", "H": "M30", "M30": "M5"}   # 各週期布局用來找 123 的較小週期
+TFN = {"D": "日線", "H": "60 分", "M30": "30 分", "M5": "5 分"}
 
 
 def abc_detail(W, d, tf0="D"):
@@ -233,14 +240,14 @@ def abc_detail(W, d, tf0="D"):
     return out
 
 
-def rule123(hbars: dict, d: int, start: str, P: dict) -> dict:
+def rule123(hbars: dict, d: int, start: str, P: dict, ln: str = "60 分", pn: str = "日線") -> dict:
     """60 分 K 的 123 法則，確認日線回檔（反彈）是否結束。
     做多：第 1 點 = 回檔以來的最低點；第 2 點 = 之後反彈的高點（至少 3 倍 60 分 ATR、半個日線 ATR）；
           第 3 點 = 再拉回（至少第 1–2 點的 0.236）但沒有跌破第 1 點；60 分 K 收盤突破第 2 點即確認。
     做空反過來。跌破（漲破）第 1 點就重新找。"""
-    keys = [k for k in sorted(hbars) if k[:10] >= start][-400:]
+    keys = [k for k in sorted(hbars) if k >= start][-400:]
     if len(keys) < 5:
-        return {"ok": False, "state": "none", "text": "日線回檔開始後的 60 分 K 還太少，等資料累積。"}
+        return {"ok": False, "state": "none", "text": f"{pn}回檔開始後的 {ln} K 還太少，等資料累積。"}
     raw = [[k] + hbars[k][:4] for k in keys]
     # 做空時把價格翻成負數，統一用做多的邏輯
     bars = [[k, o * d, (h if d == 1 else l) * d, (l if d == 1 else h) * d, c * d] for k, o, h, l, c in raw]
@@ -277,17 +284,17 @@ def rule123(hbars: dict, d: int, start: str, P: dict) -> dict:
     if conf is not None:
         state = "confirmed"
         txt = (f"123 已確認：第 1 點 {fx(P1['price'])}（{P1['t'][5:]}）、第 2 點 {fx(P2['price'])}、第 3 點 {fx(P3['price'])}，"
-               f"{bars[conf][0][5:]} 收盤{brk}第 2 點，60 分 K 判斷{'回檔' if d == 1 else '反彈'}結束。")
+               f"{bars[conf][0][5:]} 收盤{brk}第 2 點，{ln} K 判斷{'回檔' if d == 1 else '反彈'}結束。")
     elif p3 is not None:
         state = "wait_break"
-        txt = (f"第 3 點 {fx(P3['price'])} 已出現（沒有{dn}第 1 點 {fx(P1['price'])}），等 60 分 K 收盤{brk}第 2 點 {fx(P2['price'])}。")
+        txt = (f"第 3 點 {fx(P3['price'])} 已出現（沒有{dn}第 1 點 {fx(P1['price'])}），等 {ln} K 收盤{brk}第 2 點 {fx(P2['price'])}。")
     elif big:
         state = "wait3"
         txt = (f"已從第 1 點 {fx(P1['price'])} {'反彈' if d == 1 else '回落'}到第 2 點 {fx(P2['price'])}，"
                f"等拉回形成第 3 點，不可{dn} {fx(P1['price'])}。")
     else:
         state = "wait2"
-        txt = f"60 分 K 還在創新{lo}（目前第 1 點 {fx(P1['price'])}），等出現夠大的{'反彈' if d == 1 else '回落'}形成第 2 點。"
+        txt = f"{ln} K 還在創新{lo}（目前第 1 點 {fx(P1['price'])}），等出現夠大的{'反彈' if d == 1 else '回落'}形成第 2 點。"
     ok = state == "confirmed" and reached
     if state == "confirmed" and not reached:
         txt += f"但{'回檔' if d == 1 else '反彈'}沒有到第 1 批 {fx(first)} 就結束，不追價。"
@@ -317,15 +324,16 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
     last_t = lw.get("last", {}).get("t")
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "pt": pt, "plans": {}}
     major = None
-    for tf in ("D",):          # 只用日線轉折布局，60 分 K 抓進場
+    for tf in ("D", "H", "M30"):   # 各週期分開布局，用下一個較小週期的 123 抓進場
         bars = bars_by_tf.get(tf) or {}
         if len(bars) < 60:
             continue
         T = daily_trend(bars, tf)
         if last is None:
             last = T["last"]
-        P = plan_from(dict(T, last=last))
-        P["tf"], P["tf_label"] = tf, TF_LABEL[tf]
+        et = ENTRY_TF[tf]
+        P = plan_from(dict(T, last=last, lower_label=TFN[et], tfn=TFN[tf]))
+        P["tf"], P["tf_label"], P["entry_tf"] = tf, TF_LABEL[tf], TFN[et]
         P["data_t"], P["data_close"] = T["last_t"], T["last"]
         P["partial"] = bool(tf == "D" and len(bars[max(bars)]) > 6)
         if tf == "D":
@@ -333,14 +341,14 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
         elif major and P["dir"] and major["dir"]:
             P["vs_major"] = ("順著日線" if P["dir"] == major["dir"] else "逆著日線") + major["trend"]
         P["abc"] = abc_detail(W, T["d"], tf) if T["d"] else []
-        hb = bars_by_tf.get("H") or {}
+        hb = bars_by_tf.get(et) or {}
         if not T["d"] or P.get("phase") != "correct":
             P["signal"] = {"ok": False, "state": "trend",
-                           "text": "日線推動浪還在進行，不找 123；等推動浪結束、進入修正後再看 60 分 K。"} if T["d"] else None
+                           "text": f"{TFN[tf]}推動浪還在進行，不找 123；等推動浪結束、進入修正後再看 {TFN[et]} K。"} if T["d"] else None
         elif not hb:
-            P["signal"] = {"ok": False, "state": "none", "text": "這個商品沒有 60 分 K，請自行確認 123。"}
+            P["signal"] = {"ok": False, "state": "none", "text": f"這個商品沒有 {TFN[et]} K，請自行確認 123。"}
         else:
-            P["signal"] = rule123(hb, T["d"], P["points"][-1][0], P)
+            P["signal"] = rule123(hb, T["d"], P["points"][-1][0], P, TFN[et], TFN[tf])
         out["plans"][tf] = P
     out["last"], out["last_t"] = last, last_t or (major or {}).get("data_t")
     return out
@@ -353,7 +361,8 @@ def run(root: Path):
     if len(daily) < 60:
         print("[strategy] 日線資料不足，略過")
         return
-    bars = {"D": daily, "H": _load(store / "h60.json", {}), "M30": _load(store / "m30.json", {})}
+    bars = {"D": daily, "H": _load(store / "h60.json", {}), "M30": _load(store / "m30.json", {}),
+            "M5": _load(store / "m5.json", {})}
     out = build_plans(W, bars, PT)
     _dump(root / "data" / "strategy.json", out)
     for tf, P in out["plans"].items():

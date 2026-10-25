@@ -353,3 +353,4 @@ select {
 .r123-svg .pt { fill: #C98A0B; } .r123-svg .pl { fill: #C98A0B; font-weight: 700; font-size: 13px; }
 .r123-svg .br { stroke: #C98A0B; stroke-width: 1.2; stroke-dasharray: 5 4; }
 table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; border-top: 1px solid var(--line, #e5e5e5); }
+.st-batch tr.tier td { font-size: 13px; font-weight: 700; color: var(--muted); padding-top: 12px; border-top: none; }

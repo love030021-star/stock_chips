@@ -84,7 +84,7 @@
     const P = S.plans && (S.plans[state.stTf] || S.plans.D);
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
-    $("#st-meta").textContent = `${W.contract}，日線${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}）${W && W.H ? `，60 分 K 最新 ${(W.H.last.t || "").replaceAll("-", "/")}（${fp(W.H.last.c)}）` : "，這個商品沒有 60 分 K，進場訊號請自行確認"}，最新價 ${fp(S.last)}。`;
+    $("#st-meta").textContent = `${W.contract}，${P.tf_label}${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}），最新價 ${fp(S.last)}；進場看 ${P.entry_tf || "60 分"} K 的 123。`;
     const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fp(p[1])}`).join(" → ");
     const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
@@ -105,7 +105,8 @@
       $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return;
     }
     $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fp(P.zone[0])}–${fp(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
-    $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fp(b.price)}</b></td><td>${esc(b.label)}</td>
+    let lastTier = null;
+    $("#st-batches").innerHTML = P.batches.map((b, i) => `${b.tier && b.tier !== lastTier ? `<tr class="tier"><td colspan="4">${esc(up ? (lastTier = b.tier) : (lastTier = b.tier).replace("回檔", "反彈"))}</td></tr>` : ""}<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fp(b.price)}</b></td><td>${esc(b.label)}</td>
       <td class="r"><input class="lots" type="number" min="0" step="1" value="0" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
     document.querySelectorAll("#st-batches .lots").forEach((el) => el.addEventListener("input", calcCost));
     // 商品選項依各市場的每點價值產生；記住使用者上次的設定（只存在這台瀏覽器）
@@ -133,8 +134,8 @@
         <tr><td>第 3 點（不破第 1 點）</td><td class="r">${G.p3 ? fp(G.p3.price) : "—"}</td><td class="r sub">${G.p3 ? G.p3.t.slice(5) : "尚未形成"}</td></tr>
         <tr><td>進場（收盤${up ? "突破" : "跌破"}第 2 點）</td><td class="r"><b>${G.p2 ? fp(G.p2.price) : "—"}</b></td><td class="r sub">${G.confirm_t ? G.confirm_t.slice(5) + " 確認" : ""}</td></tr>
       </tbody></table>` : "";
-    $("#st-signal").innerHTML = `<div class="st-head"><h3>60 分 K 123 法則進場</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${badge}</span></div>
-      <p>${esc(G ? G.text : "沒有 60 分 K 資料。")}</p>${G && G.bars ? r123Svg(G, P) : ""}${ptsRow}`;
+    $("#st-signal").innerHTML = `<div class="st-head"><h3>${esc(P.entry_tf || "60 分")} K 123 法則進場</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${badge}</span></div>
+      <p>${esc(G ? G.text : "沒有較小週期的 K 線資料。")}</p>${G && G.bars ? r123Svg(G, P) : ""}${ptsRow}`;
     $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
       return `<p>${esc(a.tf)}：A 浪 ${fp(o[1])} → ${fp(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fp(B[1])}，C 浪進行中。</p>
@@ -142,7 +143,7 @@
           const inZone = P.zone && t.price >= P.zone[0] && t.price <= P.zone[1];
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
-    }).join("") : `<p class="sub">60 分 K 目前沒有進行中的逆向 C 浪可對照。</p>`);
+    }).join("") : `<p class="sub">較小週期目前沒有進行中的逆向 C 浪可對照。</p>`);
   }
 
   // 60 分 K 小圖：K 棒、日線布局區（色帶）、各批價位與 1／2／3 點
@@ -169,8 +170,8 @@
     });
     if (G.p2) g += `<line x1="${X(Math.max(0, idx(G.p2.t)))}" x2="${Wd - pr}" y1="${Y(G.p2.price)}" y2="${Y(G.p2.price)}" class="br"/>`;
     const tl = [0, Math.floor(n / 2), n - 1].map((i) => `<text x="${X(i)}" y="${Ht - 6}" class="tt" text-anchor="middle">${B[i][0].slice(5, 13).replace("-", "/")}</text>`).join("");
-    return `<svg class="r123-svg" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="60 分 K 與 123 點位">${g}${tl}</svg>
-      <p class="sub">色帶是日線${up ? "回檔" : "反彈"}區，橫線是四批價位，虛線是第 2 點（進場價）。</p>`;
+    return `<svg class="r123-svg" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="小週期 K 線與 123 點位">${g}${tl}</svg>
+      <p class="sub">色帶是${esc(P.tf_label)}${up ? "回檔" : "反彈"}區，橫線是各批價位，虛線是第 2 點（進場價）。</p>`;
   }
 
   function savePref() {

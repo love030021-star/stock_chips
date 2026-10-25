@@ -337,7 +337,7 @@ def analyze_market(m, tfs):
                 res["session"] = m["session"]
                 res["partial"] = False
                 W[tf] = res
-    plans = strategy.build_plans(W, {tf: tfs[tf] for tf in ("D", "H", "M30") if tf in tfs}, m["pt"])
+    plans = strategy.build_plans(W, {tf: tfs[tf] for tf in ("D", "H", "M30", "M5") if tf in tfs}, m["pt"])
     W["strategy"] = plans
     return W
 
