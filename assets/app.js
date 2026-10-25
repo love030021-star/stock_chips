@@ -172,6 +172,32 @@
     }
     showMarket(start);
     getJSON("data/chips.json").then((c) => renderChips(c));
+    watchUpdates();
+  }
+
+  // 加到手機桌面後，系統常把頁面留在背景、不重新載入。回到前景或每 10 分鐘：
+  // 先檢查網站是否有新版（有就整頁重新載入），沒有就重新抓資料重畫。
+  const BUILD = (document.querySelector('script[src*="app.js"]')?.getAttribute("src") || "").split("v=")[1] || "";
+  let lastCheck = Date.now();
+  async function checkUpdate(force) {
+    if (!force && Date.now() - lastCheck < 60 * 1000) return;
+    lastCheck = Date.now();
+    try {
+      const html = await fetch(`./?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.text());
+      const v = (html.match(/app\.js\?v=([\w]+)/) || [])[1];
+      if (v && BUILD && v !== BUILD) { location.reload(); return; }
+    } catch (e) { /* 離線時略過 */ }
+    for (const k of Object.keys(CACHE)) delete CACHE[k];
+    const idx = await getJSON("data/stocks/index.json");
+    if (idx) STOCKS = idx;
+    showMarket(state.mkt);
+    getJSON("data/chips.json").then((c) => renderChips(c));
+  }
+  function watchUpdates() {
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(); });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) checkUpdate(true); });
+    window.addEventListener("focus", () => checkUpdate());
+    setInterval(() => { if (document.visibilityState === "visible") checkUpdate(true); }, 10 * 60 * 1000);
   }
 
   // ---------- 波段逆勢布局 ----------
