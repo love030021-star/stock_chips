@@ -186,6 +186,9 @@ def backfill(codes: list[str], minutes: float):
         data = _load(p, {})
         meta = data.pop("_done", [])
         need = [m for m in months if m.strftime("%Y-%m") not in meta and m != today]
+        # 本月：還沒有本月任何資料就抓一次（之後靠每日行情累積），不標記完成
+        if not any(k.startswith(today.strftime("%Y-%m")) for k in data):
+            need.insert(0, today)
         if not need:
             continue
         for m in need:
@@ -193,7 +196,8 @@ def backfill(codes: list[str], minutes: float):
                 break
             try:
                 data.update(month_bars(code, m))
-                meta.append(m.strftime("%Y-%m"))
+                if m != today:
+                    meta.append(m.strftime("%Y-%m"))
             except Exception as e:  # noqa: BLE001
                 log(code, m.strftime("%Y-%m"), "失敗：", e)
             time.sleep(1.5)
