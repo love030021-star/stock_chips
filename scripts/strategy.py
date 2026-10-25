@@ -38,12 +38,12 @@ def r10(x):
     return int(round(x / 10.0) * 10)
 
 
-def daily_trend(daily: dict):
-    keys = sorted(daily)
+def daily_trend(daily: dict, tf: str = "D"):
+    keys = sorted(daily)[-(600 if tf == "D" else 1500):]
     bars = [[k] + daily[k][:4] for k in keys]
     a = txf.atr(bars)[-1]
     best = None
-    for mult in txf.MULTS["D"]:
+    for mult in txf.MULTS[tf]:
         piv, cur = txf.zigzag(bars, mult)
         for c in txf.candidates(piv, cur):
             if c["kind"] != "impulse":
@@ -57,7 +57,7 @@ def daily_trend(daily: dict):
         return {"d": c["d"], "k": c["k"], "pts": pts, "atr": a, "last": last, "last_t": keys[-1],
                 "mult": mult, "score": c["score"], "cur": cur and (bars[cur[0]][0], cur[1])}
     # 備援：最近兩個高點、低點的結構
-    piv, cur = txf.zigzag(bars, txf.MULTS["D"][1])
+    piv, cur = txf.zigzag(bars, txf.MULTS[tf][1])
     hs = [p[1] for p in piv if p[2] == "H"][-2:]
     ls = [p[1] for p in piv if p[2] == "L"][-2:]
     d = 0
@@ -122,7 +122,13 @@ def plan_from(T):
             batches = lv(proj, abs(proj - x[0]), (0.382, 0.5, 0.618), "預估第 1–5 浪")
             note = f"第 5 浪推進中，預估目標 {proj:,.0f}（第 5 浪 = 第 1 浪）。5 浪走完後的 ABC 修正區預估如下。"
             stop, stop_src = proj - d * abs(proj - x[0]) * 0.786 - d * buf, "預估第 1–5 浪的 0.786 外"
-        t1, t1s, t2, t2s = proj, "預估推動浪終點", proj, "預估推動浪終點"
+        if k == 2:
+            mid = batches[1]["price"]
+            t1, t1s = proj, "預估第 3 浪終點"
+            t2, t2s = mid + d * abs(x[1] - x[0]), "第 5 浪 = 第 1 浪（自預估 0.382 處起算）"
+        else:
+            t1, t1s = proj - d * abs(proj - x[0]) * 0.236, "回到預估第 1–5 浪的 0.236"
+            t2, t2s = proj, "預估第 5 浪終點"
         phase = "trend"
         out["note"] = note
     out.update({"phase": phase, "batches": batches, "stop": r10(stop), "stop_src": stop_src,
@@ -146,11 +152,14 @@ def plan_from(T):
     return out
 
 
-def abc_detail(W, d):
-    """60 分、30 分若有逆向的 ABC（A、B 已完成，C 進行中），列出 C 浪目標。"""
+LOWER = {"D": ("H", "M30"), "H": ("M30", "M5"), "M30": ("M5",)}
+
+
+def abc_detail(W, d, tf0="D"):
+    """較小週期若有逆向的 ABC（A、B 已完成，C 進行中），列出 C 浪目標。"""
     want = "ABC 回檔" if d == 1 else "ABC 反彈"
     out = []
-    for tf in ("H", "M30"):
+    for tf in LOWER[tf0]:
         R = W.get(tf)
         if not R:
             continue
@@ -182,34 +191,43 @@ def entry_signal(W, d, inside):
             "invalid": c["invalid"]["price"], "t": R["last"]["t"], "last": R["last"]["c"]}
 
 
+TF_FILE = {"D": "daily.json", "H": "h60.json", "M30": "m30.json"}
+TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分"}
+
+
 def run(root: Path):
     store = root / "data" / "store" / "txf"
-    daily = _load(store / "daily.json", {})
     W = _load(root / "data" / "wave.json", {})
+    daily = _load(store / "daily.json", {})
     if len(daily) < 60:
         print("[strategy] 日線資料不足，略過")
         return
-    T = daily_trend(daily)
-    P = plan_from(T)
-    last = (W.get("M5") or {}).get("last", {}).get("c") or T["last"]
-    if P.get("zone"):
-        inside = P["zone"][0] <= last <= P["zone"][1]
-    else:
-        inside = False
-    out = {
-        "generated_at": datetime.now(TPE).isoformat(timespec="minutes"),
-        "daily_t": T["last_t"], "daily_close": T["last"],
-        "last": last, "last_t": (W.get("M5") or {}).get("last", {}).get("t") or T["last_t"],
-        "plan": P, "pt": PT,
-        "abc": abc_detail(W, T["d"]) if T["d"] else [],
-        "signal": entry_signal(W, T["d"], inside) if T["d"] else None,
-    }
-    # 用 5 分 K 最新價重算現況
-    if P.get("phase") == "correct":
-        T2 = dict(T, last=last)
-        out["plan"]["status"] = plan_from(T2)["status"]
+    last = (W.get("M5") or {}).get("last", {}).get("c")
+    last_t = (W.get("M5") or {}).get("last", {}).get("t")
+    out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "pt": PT, "plans": {}}
+    major = None
+    for tf in ("D", "H", "M30"):
+        bars = _load(store / TF_FILE[tf], {})
+        if len(bars) < 60:
+            continue
+        T = daily_trend(bars, tf)
+        if last is None:
+            last = T["last"]
+        P = plan_from(dict(T, last=last))
+        P["tf"], P["tf_label"] = tf, TF_LABEL[tf]
+        P["data_t"], P["data_close"] = T["last_t"], T["last"]
+        if tf == "D":
+            major = P
+        elif major and P["dir"] and major["dir"]:
+            P["vs_major"] = ("順著日線" if P["dir"] == major["dir"] else "逆著日線") + major["trend"]
+        inside = bool(P.get("zone")) and P["zone"][0] <= last <= P["zone"][1]
+        P["abc"] = abc_detail(W, T["d"], tf) if T["d"] else []
+        P["signal"] = entry_signal(W, T["d"], inside) if T["d"] else None
+        out["plans"][tf] = P
+    out["last"], out["last_t"] = last, last_t or (major or {}).get("data_t")
     _dump(root / "data" / "strategy.json", out)
-    print(f"[strategy] 日線{P['trend']}，{P['now']}；{P.get('status', '')}")
+    for tf, P in out["plans"].items():
+        print(f"[strategy] {P['tf_label']}：{P['trend']}，{P['now']}；{P.get('status', '')}")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
   "use strict";
   const $ = (s) => document.querySelector(s);
   const MK = { twse: "上市", tpex: "上櫃", all: "全部" };
-  const state = { waveTf: "D", pickMarket: "twse", histMarket: "twse", dtSide: "long", volMarket: "twse", turnMarket: "twse" };
+  const state = { stTf: "D", waveTf: "D", pickMarket: "twse", histMarket: "twse", dtSide: "long", volMarket: "twse", turnMarket: "twse" };
   let D = null, H = null, W = null;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -61,22 +61,29 @@
   function renderStrategy(S) {
     if (!S) { $("#st-meta").textContent = "策略資料還沒產生，下一次每日更新後會出現。"; return; }
     SP = S;
-    const P = S.plan, up = P.dir === 1;
-    $("#st-meta").textContent = `日線資料到 ${S.daily_t.replaceAll("-", "/")}（收 ${fmt(S.daily_close)}），5 分 K 最新 ${S.last_t.replaceAll("-", "/")}（${fmt(S.last)}）。`;
+    const P = S.plans && S.plans[state.stTf];
+    if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
+    const up = P.dir === 1, M = S.plans.D;
+    $("#st-meta").textContent = `${P.tf_label}資料到 ${P.data_t.replaceAll("-", "/")}（收 ${fmt(P.data_close)}），5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fmt(S.last)}）。`;
     const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fmt(p[1])}`).join(" → ");
+    const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
       <div class="st-big ${up ? "up" : P.dir === -1 ? "down" : ""}">
-        <span class="lab">日線大方向</span>
+        <span class="lab">${P.tf_label}${P.tf === "D" ? "大方向" : "波段方向"}</span>
         <b>${esc(P.trend)}</b>
         <span class="now">目前：${esc(P.now)}</span>
       </div>
       <div class="st-desc">
         <p>${esc(pts)}</p>
         <p class="st-act ${P.phase === "correct" ? "" : "warn"}">${esc(P.status || P.text || "")}</p>
-        ${P.note ? `<p class="sub">${esc(P.note)}</p>` : ""}
-        ${P.phase ? `<p class="sub">布局方向：<b class="${up ? "up" : "down"}">${P.side}</b>（逆著目前的${up ? "回檔" : "反彈"}分批進場，順著日線推動浪的方向）。</p>` : ""}
+        ${P.note ? `<p class="sub">${esc(P.note)}</p>` : ""}${major}
+        ${P.phase && P.phase !== "wait" ? `<p class="sub">布局方向：<b class="${up ? "up" : "down"}">${P.side}</b>（逆著目前的${up ? "回檔" : "反彈"}分批進場，順著${P.tf_label}推動浪的方向）。</p>` : ""}
       </div>`;
-    if (!P.batches) { $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; return; }
+    if (!P.batches || !P.batches.length) {
+      $("#st-zone-title").textContent = "回檔區間分批";
+      $("#st-batches").innerHTML = `<tr><td colspan="4" class="sub">這個週期目前沒有可布局的推動浪結構。</td></tr>`;
+      $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return;
+    }
     $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fmt(P.zone[0])}–${fmt(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
     $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fmt(b.price)}</b></td><td>${esc(b.label)}</td>
       <td class="r"><input class="lots" type="number" min="0" step="1" value="0" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
@@ -92,17 +99,17 @@
     $("#st-mode").onchange = allocate;
     $("#st-prod").onchange = () => { savePref(); calcCost(); };
     allocate();
-    const G = S.signal;
+    const G = P.signal;
     $("#st-signal").innerHTML = `<div class="st-head"><h3>5 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
       <p>${esc(G ? G.text : "沒有 5 分 K 資料。")}</p>`;
-    $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (S.abc.length ? S.abc.map((a) => {
+    $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
       return `<p>${esc(a.tf)}：A 浪 ${fmt(o[1])} → ${fmt(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fmt(B[1])}，C 浪進行中。</p>
         <table><tbody>${a.targets.map((t) => {
           const inZone = P.zone && t.price >= P.zone[0] && t.price <= P.zone[1];
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
-    }).join("") : `<p class="sub">60 分、30 分目前沒有進行中的 C 浪可對照。</p>`);
+    }).join("") : `<p class="sub">較小週期目前沒有進行中的 C 浪可對照。</p>`);
   }
 
   function savePref() {
@@ -129,7 +136,7 @@
   }
 
   function calcCost() {
-    const P = SP.plan, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
+    const P = SP.plans[state.stTf], up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
     const lots = [...document.querySelectorAll("#st-batches .lots")].map((el) => Math.max(0, +el.value || 0));
     const n = lots.reduce((a, b) => a + b, 0);
     const total = Math.floor(+$("#st-total").value || 0);
@@ -153,7 +160,7 @@
       <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fmt(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> 元</td></tr>
       <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fmt(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> 元</td></tr>
       <tr><td>風險報酬比（目標 1）</td><td class="r">${rr.toFixed(2)}</td></tr>
-      </tbody></table>${over}<p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
+      </tbody></table>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------
@@ -544,11 +551,12 @@
   }
 
   // ---------- 切換按鈕 ----------
-  const renderers = { waveTf: () => renderWave(), pickMarket: renderPicks, histMarket: renderHistory, dtSide: renderDaytrade, volMarket: renderVolume, turnMarket: renderTurnover };
+  const renderers = { stTf: () => renderStrategy(SP), waveTf: () => renderWave(), pickMarket: renderPicks, histMarket: renderHistory, dtSide: renderDaytrade, volMarket: renderVolume, turnMarket: renderTurnover };
   document.querySelectorAll(".seg-ctl").forEach((g) => {
     g.addEventListener("click", (e) => {
       const b = e.target.closest("button");
-      if (!b || (g.dataset.group === "waveTf" ? !W : !D)) return;
+      const need = { waveTf: W, stTf: SP }[g.dataset.group];
+      if (!b || (g.dataset.group in { waveTf: 1, stTf: 1 } ? !need : !D)) return;
       g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
       state[g.dataset.group] = b.dataset.v;
       renderers[g.dataset.group]();
