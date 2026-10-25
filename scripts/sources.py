@@ -276,7 +276,7 @@ def tdcc_latest():
 def isin_list(mode: int):
     """mode=2 上市、4 上櫃。只回傳普通股（CFI 為 ES 開頭、4 位數代號）。"""
     html = _get(f"https://isin.twse.com.tw/isin/C_public.jsp?strMode={mode}",
-                as_json=False, encoding="big5")
+                as_json=False, encoding="cp950")
     out = {}
     for tr in re.findall(r"<tr>(.*?)</tr>", html, flags=re.S | re.I):
         cells = [re.sub(r"<[^>]+>", "", c).strip()

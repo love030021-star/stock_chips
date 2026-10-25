@@ -50,7 +50,8 @@ def refresh_meta(force=False):
     meta = load(META, {})
     age_ok = meta.get("_updated") and (
         datetime.now(TPE).date() - date.fromisoformat(meta["_updated"])).days < 7
-    if age_ok and not force:
+    broken = any("\ufffd" in v.get("name", "") for m in ("twse", "tpex") for v in meta.get(m, {}).values())
+    if age_ok and not force and not broken:
         return meta
     log("更新證券基本資料（產業別）")
     try:
