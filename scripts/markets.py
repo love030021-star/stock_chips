@@ -35,6 +35,8 @@ MARKETS = [
      "pt": {"1OZ（美元）": 1, "MGC 10oz（美元）": 10}, "unit": "美元"},
     {"id": "BRENT", "name": "布蘭特原油（BZ）", "yahoo": "BZ=F", "tv": "ICEEUR_BRN1", "session": "全時段",
      "pt": {"BZ 1000 桶（美元）": 1000}, "unit": "美元"},
+    {"id": "BTC", "name": "比特幣（BTC）", "tv": "COINBASE_BTCUSD", "kraken": "XBTUSD", "crypto": True,
+     "session": "24 小時", "pt": {"1 BTC（美元）": 1, "CME MBT 0.1 BTC（美元）": 0.1}, "unit": "美元"},
 ]
 
 _s = requests.Session()
@@ -258,7 +260,7 @@ def tpex_daily(months=26):
 TV_IV = {"D": "1D", "H": "1h", "M30": "30m", "M5": "5m"}
 
 
-def tv_load(root: Path, prefix: str) -> dict:
+def tv_load(root: Path, prefix: str, crypto: bool = False) -> dict:
     """讀 data/store/tv/<prefix>_<週期>.json（[[utc秒, o, h, l, c], ...]）。
     日 K 的時間是交易時段開始（例如 CME 前一晚 18:00 美東），加 6 小時後取 UTC 日期即交易日。"""
     tfs = {}
@@ -271,7 +273,7 @@ def tv_load(root: Path, prefix: str) -> dict:
             out = {}
             for t, o, h, l, c in sorted(rows):
                 dt = datetime.fromtimestamp(t + 6 * 3600, timezone.utc)
-                while dt.weekday() >= 5:          # 週末零星成交併入週五
+                while not crypto and dt.weekday() >= 5:   # 週末零星成交併入週五（加密貨幣 24 小時不併）
                     dt -= timedelta(days=1)
                 k = dt.strftime("%Y-%m-%d")
                 b = out.get(k)
@@ -285,11 +287,34 @@ def tv_load(root: Path, prefix: str) -> dict:
     return tfs
 
 
+def kraken_update(root: Path, pair: str, prefix: str):
+    """Kraken 公開 K 線（每個週期最近 720 根），併入 data/store/tv/<prefix>_<週期>.json。"""
+    for tf, iv in TV_IV.items():
+        mins = {"D": 1440, "H": 60, "M30": 30, "M5": 5}[tf]
+        j = _get("https://api.kraken.com/0/public/OHLC", {"pair": pair, "interval": mins}).json()
+        if j.get("error"):
+            raise RuntimeError(j["error"])
+        rows = next(v for k, v in j["result"].items() if k != "last")
+        p = root / "data" / "store" / "tv" / f"{prefix}_{iv}.json"
+        old = {r[0]: r for r in json.loads(p.read_text(encoding="utf-8"))} if p.exists() else {}
+        for r in rows:
+            t = int(r[0])
+            old[t] = [t, float(r[1]), float(r[2]), float(r[3]), float(r[4])]
+        keep = sorted(old)[-(800 if tf == "D" else 3000)]if len(old) > (800 if tf == "D" else 3000) else None
+        out = [old[t] for t in sorted(old) if keep is None or t >= keep]
+        _dump(p, out)
+
+
 # ---------------- 主流程 ----------------
 
 def fetch(m, store: Path, root: Path):
     tfs = {}
-    tv = tv_load(root, m["tv"]) if m.get("tv") else {}
+    if m.get("kraken"):
+        try:
+            kraken_update(root, m["kraken"], m["tv"])
+        except Exception as e:  # noqa: BLE001
+            log(m["name"], "Kraken 失敗，改用既有 TradingView 資料：", e)
+    tv = tv_load(root, m["tv"], m.get("crypto", False)) if m.get("tv") else {}
     if m.get("tpex"):
         tfs["D"] = tpex_daily()
         for tf in ("H", "M30", "M5"):
