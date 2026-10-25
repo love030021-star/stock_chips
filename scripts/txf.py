@@ -90,12 +90,12 @@ def fetch_daily_range(start: date, end: date) -> dict:
         c = [x.strip() for x in line.split(",")]
         if len(c) < 18 or c[1] != "TX" or c[17] != "一般" or not re.fullmatch(r"\d{6}", c[2]):
             continue
-        o, h, l, cl, v = (_f(c[i]) for i in (3, 4, 5, 6, 9))
+        o, h, l, cl, v, ch = (_f(c[i]) for i in (3, 4, 5, 6, 9, 7))
         if None in (o, h, l, cl) or not v:
             continue
         d = c[0].replace("/", "-")
         if d not in best or v > best[d][4]:
-            best[d] = [o, h, l, cl, v]
+            best[d] = [o, h, l, cl, v, ch]  # ch：同一合約與前一日結算參考價的漲跌
     return best
 
 

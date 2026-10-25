@@ -16,6 +16,8 @@
   async function load() {
     fetch(`data/wave.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
       .then((w) => { W = w; renderWave(); });
+    fetch(`data/chips.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((c) => renderChips(c));
     try {
       const v = Date.now().toString(36);
       [D, H] = await Promise.all([
@@ -49,6 +51,59 @@
     $("#gen-note").textContent = `本次資料產生時間：${(D.generated_at || "").replace("T", " ")}，使用 ${D.trading_days} 個交易日的歷史資料。`;
   }
 
+
+
+  // ---------- 選擇權籌碼 ----------
+  const sg = (n) => n == null ? "—" : `${n > 0 ? "+" : ""}${fmt(n)}`;
+  const dcell = (n) => `<span class="num ${cls(n)}">${sg(n)}</span>`;
+  const md = (d) => d ? d.slice(5).replace("-", "/") : "";
+
+  function renderChips(C) {
+    if (!C) { $("#chip-meta").textContent = "選擇權籌碼資料還沒產生，下一次每日更新後會出現。"; return; }
+    const A = C.analysis;
+    const v = $("#chip-verdict");
+    v.textContent = A.title;
+    v.className = "verdict " + (A.verdict === "偏空" ? "bear" : A.verdict === "偏多" ? "bull" : "");
+    $("#chip-meta").textContent = `資料日期 ${md(C.date)}，日變化與 ${md(C.prev)} 比較。單位：口。`;
+    const f = C.fut, ix = C.index;
+    $("#chip-market").innerHTML = `
+      <div><dt>${C.month ? C.month.slice(4) + " 月" : ""}台指期</dt><dd>${fmt(f.close)} <small class="num ${cls(f.chg)}">${sg(f.chg)}</small></dd></div>
+      <div><dt>加權指數</dt><dd>${ix ? fmt(ix.close, 2) : "—"} <small class="num ${cls(ix && ix.chg)}">${ix ? sg(ix.chg) : ""}</small></dd></div>
+      <div><dt>期現價差</dt><dd class="${cls(C.basis)}">${C.basis == null ? "—" : (C.basis > 0 ? "+" : "") + fmt(C.basis, 2)}</dd></div>
+      <div><dt>Put／Call 未平倉比</dt><dd>${C.pcr == null ? "—" : fmt(C.pcr, 1) + "%"}</dd></div>`;
+    $("#chip-one").textContent = C.oneliner;
+    const li = (arr) => arr.length ? `<ul>${arr.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : `<p class="none">沒有明顯訊號</p>`;
+    $("#chip-evid").innerHTML = `<div><h4 class="down">偏空證據</h4>${li(A.bear)}</div><div><h4 class="up">偏多證據</h4>${li(A.bull)}</div>`;
+
+    $("#chip-net").innerHTML = `<thead><tr><th>類別</th><th class="r">多空淨額</th><th class="r">日變化</th><th>判讀</th></tr></thead>
+      <tbody>${C.net.map((r) => `<tr><td>${esc(r.name)}</td><td class="r num ${cls(r.v)}"><b>${fmt(r.v)}</b></td><td class="r">${dcell(r.d)}</td><td>${esc(r.tag)}</td></tr>`).join("")}</tbody>`;
+
+    $("#chip-cp-title").textContent = `大額交易人 Call／Put 明細（${C.month} 月選）`;
+    const pair = (v, d) => `<td class="r num">${fmt(v)}</td><td class="r d">${dcell(d)}</td>`;
+    $("#chip-cp").innerHTML = `<thead><tr><th>類別</th><th class="r">買 Call</th><th class="r">變化</th><th class="r">賣 Call</th><th class="r">變化</th><th class="r">買 Put</th><th class="r">變化</th><th class="r">賣 Put</th><th class="r">變化</th></tr></thead>
+      <tbody>${C.cp.map((r) => `<tr><td>${esc(r.name)}</td>${pair(r.cb, r.dcb)}${pair(r.cs, r.dcs)}${pair(r.pb, r.dpb)}${pair(r.ps, r.dps)}</tr>`).join("")}
+      ${C.total && C.total.C ? `<tr><td>全市場未平倉</td><td class="r num" colspan="4">Call ${fmt(C.total.C)}</td><td class="r num" colspan="4">Put ${fmt(C.total.P)}</td></tr>` : ""}</tbody>`;
+
+    $("#chip-syn-title").textContent = `大額交易人合成多空（${C.month} 月選）`;
+    $("#chip-syn").innerHTML = `<thead><tr><th>類別</th><th class="r">多方</th><th class="r">變化</th><th class="r">空方</th><th class="r">變化</th><th class="r">淨額</th><th class="r">變化</th></tr></thead>
+      <tbody>${C.synth.map((r) => `<tr><td>${esc(r.name)}</td>${pair(r.long, r.dlong)}${pair(r.short, r.dshort)}<td class="r num ${cls(r.net)}"><b>${sg(r.net)}</b></td><td class="r d">${dcell(r.dnet)}</td></tr>`).join("")}</tbody>`;
+
+    const W2 = C.walls || {};
+    const wall = (w, t) => !w ? "" : `<div class="wall"><h4>${t}：${esc(w.contract)}（${md(w.exp)} 到期）</h4>
+      <div class="lv"><div><b>壓力（Call 未平倉）</b>${w.res.slice().reverse().map((k) => `<span>${fmt(k[0])}　<small>${fmt(k[1])} 口</small></span>`).join("") || "—"}</div>
+      <div><b>支撐（Put 未平倉）</b>${w.sup.map((k) => `<span>${fmt(k[0])}　<small>${fmt(k[1])} 口</small></span>`).join("") || "—"}</div></div>
+      <div class="mx">最大 Call 未平倉 ${w.max_call ? fmt(w.max_call[0]) : "—"}，最大 Put 未平倉 ${w.max_put ? fmt(w.max_put[0]) : "—"}</div></div>`;
+    $("#chip-walls").innerHTML = (wall(W2.weekly, "週選") + wall(W2.monthly, "月選")) || `<p class="sub">尚無履約價未平倉資料。</p>`;
+    $("#chip-watch").innerHTML = C.watch.map((w) => `<li><b class="${w.side === "多方" ? "up" : w.side === "空方" ? "down" : ""}">${esc(w.side)}</b>${esc(w.text)}</li>`).join("");
+    $("#chip-big").innerHTML = C.biggest.map((b) => `<li>${esc(b.name)}<span class="num ${cls(b.d)}">${sg(b.d)}</span></li>`).join("");
+
+    const G = ["外資", "投信", "自營商", "前五大", "前十大", "前五特法", "前十特法"];
+    $("#chip-hist").innerHTML = `<thead><tr><th>日期</th>${G.map((g) => `<th class="r">${g}</th>`).join("")}<th class="r">台指期</th></tr></thead>
+      <tbody>${C.history.map((h) => `<tr><td class="num">${md(h.date)}</td>${G.map((g) => {
+        const x = h.rows[g];
+        return x ? `<td class="r"><span class="num ${cls(x[0])}">${fmt(x[0])}</span><br><small class="num ${cls(x[1])}">${x[1] == null ? "" : sg(x[1])}</small></td>` : `<td class="r">—</td>`;
+      }).join("")}<td class="r num">${fmt(h.fut)}</td></tr>`).join("")}</tbody>`;
+  }
 
   // ---------- 台指期波浪 ----------
   function renderWave() {

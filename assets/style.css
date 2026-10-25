@@ -262,3 +262,32 @@ select {
 .wave-chart .note-t { fill: var(--ink); }
 .wave-chart .note-g { fill: var(--gold); font-weight: 600; }
 .wave-chart .note-m { fill: var(--muted); }
+
+/* ---------- 選擇權籌碼 ---------- */
+.verdict { font-weight: 700; font-size: 15px; padding: 4px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.verdict.bear { color: var(--down); border-color: currentColor; }
+.verdict.bull { color: var(--up); border-color: currentColor; }
+.oneliner { font-size: 16px; line-height: 1.7; background: var(--panel); border-left: 4px solid var(--gold); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 0 0 16px; }
+.evid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.evid > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.evid h4 { margin: 0 0 8px; font-size: 15px; }
+.evid ul { margin: 0; padding-left: 1.2em; font-size: 14.5px; }
+.evid li + li { margin-top: 4px; }
+.evid .none { color: var(--muted); font-size: 14px; margin: 0; }
+.h3 { font-size: 17px; margin: 28px 0 10px; }
+.grid td.d { font-size: 12.5px; }
+.chip-two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.wall { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; }
+.wall h4 { margin: 0 0 6px; font-size: 14.5px; }
+.wall .lv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+.wall .lv b { display: block; font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 2px; }
+.wall .lv span { display: block; font-family: var(--num); font-variant-numeric: tabular-nums; }
+.wall .mx { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.watch { list-style: none; padding: 0; margin: 0; }
+.watch li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 14.5px; }
+.watch li + li { margin-top: 8px; }
+.watch b { margin-right: 6px; }
+.big-list { margin: 0; padding-left: 1.4em; font-size: 14.5px; }
+.big-list li + li { margin-top: 4px; }
+.big-list .num { font-weight: 600; margin-left: 6px; }
+@media (max-width: 760px) { .evid, .chip-two { grid-template-columns: 1fr; } }

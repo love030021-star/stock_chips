@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251000">
+<link rel="stylesheet" href="assets/style.css?v=202610251100">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -19,6 +19,7 @@
 <nav class="tabs" aria-label="頁面區塊">
   <a href="#picks">今日推薦</a>
   <a href="#wave">台指期波浪</a>
+  <a href="#chips">選擇權籌碼</a>
   <a href="#history">歷史清單</a>
   <a href="#daytrade">當沖熱門</a>
   <a href="#volume">成交量</a>
@@ -85,6 +86,44 @@
     <div class="wave-chart" id="wave-chart" role="img" aria-label="台指期 K 線與波浪標示"></div>
     <div class="wave-counts" id="wave-counts"></div>
     <p class="hint">用程式找出轉折點（反轉幅度超過 ATR 的固定倍數才算），再依艾略特波浪規則檢查：第 2 浪不跌破第 1 浪起點、第 3 浪不是最短、第 4 浪不與第 1 浪重疊；符合規則的數浪方式中，以各浪比例最接近常見費氏比例、起點最明顯者為主要推算。這是機械式推算，換一種數法可能得到不同結論，僅供參考。</p>
+  </section>
+
+  <section id="chips" class="block">
+    <div class="block-head">
+      <h2>台指選擇權籌碼</h2>
+      <span class="verdict" id="chip-verdict"></span>
+    </div>
+    <p class="sub" id="chip-meta">載入中</p>
+    <dl class="stats" id="chip-market"></dl>
+    <p class="oneliner" id="chip-one"></p>
+    <div class="evid" id="chip-evid"></div>
+
+    <h3 class="h3">法人及大額交易人多空淨額（所有契約）</h3>
+    <div class="table-wrap"><table class="grid" id="chip-net"></table></div>
+
+    <h3 class="h3" id="chip-cp-title">大額交易人 Call／Put 明細</h3>
+    <div class="table-wrap"><table class="grid" id="chip-cp"></table></div>
+
+    <h3 class="h3" id="chip-syn-title">大額交易人合成多空</h3>
+    <div class="table-wrap"><table class="grid" id="chip-syn"></table></div>
+    <p class="hint">合成多方 = 買 Call + 賣 Put，合成空方 = 賣 Call + 買 Put，淨額 = 多方 − 空方。前五大包含在前十大裡，兩組數字不能相加。</p>
+
+    <div class="chip-two">
+      <div>
+        <h3 class="h3">未平倉支撐壓力</h3>
+        <div id="chip-walls"></div>
+      </div>
+      <div>
+        <h3 class="h3">觀察重點</h3>
+        <ul class="watch" id="chip-watch"></ul>
+        <h3 class="h3">最明顯的籌碼增減</h3>
+        <ol class="big-list" id="chip-big"></ol>
+      </div>
+    </div>
+
+    <h3 class="h3">近 10 個交易日多空淨額</h3>
+    <div class="table-wrap"><table class="grid" id="chip-hist"></table></div>
+    <p class="hint">資料來源：期交所三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日交易行情。多空淨額 = (買 Call − 賣 Call) − (買 Put − 賣 Put)。判讀由固定規則產生：前五、前十大與特法的淨額變化、三大法人變化、月選合成淨額變化與期貨漲跌各給分加總，僅供參考。</p>
   </section>
 
   <section id="history" class="block">
@@ -185,6 +224,6 @@
   <p>籌碼選股日報。資料於每個交易日晚間自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251000" defer></script>
+<script src="assets/app.js?v=202610251100" defer></script>
 </body>
 </html>
