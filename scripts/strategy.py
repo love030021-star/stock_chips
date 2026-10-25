@@ -183,7 +183,14 @@ def plan_from(T):
         elif beyond:
             out["status"] = f"價格 {last:,.0f} 已越過最後一批，靠近停損 {r10(stop):,}，不再加碼。"
     else:
-        out["status"] = "推動浪進行中，逆勢布局要等回檔出現。"
+        last = T["last"]
+        z = f"{zone[0]:,}–{zone[1]:,}"
+        if k == 2:
+            out["status"] = (f"第 3 浪還在{'往上' if up else '往下'}，預估先到 {t1:,.0f}，之後第 4 浪{'回檔' if up else '反彈'}到 {z} 才分批"
+                             f"{'買進' if up else '放空'}。現在 {last:,.0f} 不進場。")
+        else:
+            out["status"] = (f"第 5 浪還在{'往上' if up else '往下'}，預估到 {t2:,.0f} 附近結束，之後的 ABC {'回檔' if up else '反彈'}到 {z} 才分批"
+                             f"{'買進' if up else '放空'}。現在 {last:,.0f} 不進場。")
     return out
 
 
