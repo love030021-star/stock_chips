@@ -84,7 +84,7 @@
     const P = S.plans && (S.plans[state.stTf] || S.plans.D);
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
-    $("#st-meta").textContent = `${W.contract}，${P.tf_label}${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}）${W && W.M5 ? `，5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fp(S.last)}）` : "，這個商品沒有 5 分 K，進場訊號請自行確認"}。`;
+    $("#st-meta").textContent = `${W.contract}，日線${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}）${W && W.H ? `，60 分 K 最新 ${(W.H.last.t || "").replaceAll("-", "/")}（${fp(W.H.last.c)}）` : "，這個商品沒有 60 分 K，進場訊號請自行確認"}，最新價 ${fp(S.last)}。`;
     const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fp(p[1])}`).join(" → ");
     const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
@@ -125,8 +125,8 @@
     $("#st-prod").onchange = () => { savePref(); calcCost(); };
     allocate();
     const G = P.signal;
-    $("#st-signal").innerHTML = `<div class="st-head"><h3>5 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
-      <p>${esc(G ? G.text : "沒有 5 分 K 資料。")}</p>`;
+    $("#st-signal").innerHTML = `<div class="st-head"><h3>60 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
+      <p>${esc(G ? G.text : "沒有 60 分 K 資料。")}</p>`;
     $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
       return `<p>${esc(a.tf)}：A 浪 ${fp(o[1])} → ${fp(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fp(B[1])}，C 浪進行中。</p>
@@ -134,7 +134,7 @@
           const inZone = P.zone && t.price >= P.zone[0] && t.price <= P.zone[1];
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
-    }).join("") : `<p class="sub">較小週期目前沒有進行中的 C 浪可對照。</p>`);
+    }).join("") : `<p class="sub">60 分 K 目前沒有進行中的逆向 C 浪可對照。</p>`);
   }
 
   function savePref() {
@@ -173,9 +173,9 @@
     const over = total && n !== total ? `<p class="st-exit warn">各批合計 ${n} 口，與可下單總口數 ${total} 口不同。</p>` : "";
     const avg = P.batches.reduce((a, b, i) => a + b.price * lots[i], 0) / n;
     const d = P.dir;
-    const loss = (avg - P.stop) * d * n * mult;
     const g1 = (P.t1 - avg) * d * n * mult, g2 = (P.t2 - avg) * d * n * mult;
-    const rr = loss > 0 ? g1 / loss : 0;
+    const stress = P.stress || (P.stop != null ? [{ price: P.stop, label: "停損：" + (P.stop_src || "") }] : []);
+    const srows = stress.map((x) => `<tr><td>${esc(x.label)}</td><td class="r">${fp(x.price)}，浮動虧損 <span class="down">${fmt((avg - x.price) * d * n * mult)}</span> ${money}</td></tr>`).join("");
     let cum = 0, rows = "";
     P.batches.forEach((b, i) => {
       if (!lots[i]) return;
@@ -185,11 +185,10 @@
     });
     $("#st-calc").innerHTML = `<table><tbody>${rows}
       <tr><td><b>全部成交平均成本</b></td><td class="r"><b>${fp(avg)}</b></td></tr>
-      <tr><td>停損（${esc(P.stop_src)}）</td><td class="r">${fp(P.stop)}，虧損 <span class="down">${fmt(loss)}</span> ${money}</td></tr>
       <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fp(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> ${money}</td></tr>
       <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fp(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> ${money}</td></tr>
-      <tr><td>風險報酬比（目標 1）</td><td class="r">${rr.toFixed(2)}</td></tr>
-      </tbody></table>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${unit === "點" ? "指數沒有每點價值，損益以點數 × 口數表示。" : `${esc(prod)}每點 ${mult} ${unit}。`}部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
+      <tr><td colspan="2" class="sub">不設停損，以下是全部成交後抱單到這些價位的浮動虧損（壓力測試）：</td></tr>${srows}
+      </tbody></table><p class="st-exit warn">不停損代表虧損沒有上限。到結構失效價時停止加碼並等日線重新數浪；請先確認保證金能撐到更深的壓力測試價位，避免被追繳或強制平倉。</p>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${unit === "點" ? "指數沒有每點價值，損益以點數 × 口數表示。" : `${esc(prod)}每點 ${mult} ${unit}。`}部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------

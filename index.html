@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251530">
+<link rel="stylesheet" href="assets/style.css?v=202610251900">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -56,11 +56,7 @@
   <section id="strategy" class="block">
     <div class="block-head">
       <h2>波段逆勢布局</h2>
-      <div class="seg-ctl" role="group" aria-label="波段週期" data-group="stTf">
-        <button data-v="D" aria-pressed="true">日線波段</button>
-        <button data-v="H">60 分波段</button>
-        <button data-v="M30">30 分波段</button>
-      </div>
+      <span class="st-tag">日線轉折 × 60 分進場・不設停損</span>
     </div>
     <p class="sub" id="st-meta">載入中</p>
     <div class="st-trend" id="st-trend"></div>
@@ -85,7 +81,7 @@
         <div class="st-card" id="st-abc"></div>
       </div>
     </div>
-    <p class="hint">規則：所選週期只數推動浪，判斷上升或下跌與目前浪位（日線另外標示大方向）。修正浪才逆勢布局：第 2 浪取第 1 浪的 0.5／0.618／0.786，第 4 浪取第 3 浪的 0.236／0.382／0.5，5 浪走完後的 ABC 取整段的 0.382／0.5／0.618，各為一批。價格進入區間後，等 5 分 K 推算轉為布局方向再進該批。停損用波浪規則的失效價。這是程式依規則算出的參考價位，不是投資建議。</p>
+    <p class="hint">規則：只用日線轉折數推動浪，判斷上升或下跌與目前浪位。修正浪才逆勢布局，各分四批：第 2 浪取第 1 浪的 0.382／0.5／0.618／0.786，第 4 浪取第 3 浪的 0.236／0.382／0.5／0.618，5 浪走完後的 ABC 取整段的 0.382／0.5／0.618／0.786。價格進入區間後，等 60 分 K 推算轉為布局方向再進該批。不設停損：波浪規則的失效價只當「停止加碼、重新數浪」的位置，並列出到失效價與更深一段時的浮動虧損，請自行確認保證金撐得住。這是程式依規則算出的參考價位，不是投資建議。</p>
   </section>
 
   <section id="chips" class="block">
@@ -156,6 +152,6 @@
   <p>波浪籌碼日報。資料於每個交易日晚間與隔天清晨自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251530" defer></script>
+<script src="assets/app.js?v=202610251900" defer></script>
 </body>
 </html>
