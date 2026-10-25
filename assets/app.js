@@ -76,7 +76,7 @@
   function drawStrategy(S) {
     if (!S) {
       $("#st-meta").textContent = "這個商品的波段布局資料還沒產生，下一次每日更新後會出現。";
-      ["#st-trend", "#st-batches", "#st-calc", "#st-signal", "#st-abc"].forEach((k) => { $(k).innerHTML = ""; });
+      ["#st-trend", "#st-figure", "#st-batches", "#st-calc", "#st-signal", "#st-abc"].forEach((k) => { $(k).innerHTML = ""; });
       return;
     }
     if (!S.plans && S.plan) S = Object.assign({}, S, { plans: { D: Object.assign({ tf: "D", tf_label: "日線", data_t: S.daily_t || "", data_close: S.daily_close, abc: S.abc || [], signal: S.signal }, S.plan) } });
@@ -102,8 +102,13 @@
     if (!P.batches || !P.batches.length) {
       $("#st-zone-title").textContent = "回檔區間分批";
       $("#st-batches").innerHTML = `<tr><td colspan="4" class="sub">這個週期目前沒有可布局的推動浪結構。</td></tr>`;
-      $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return;
+      $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; $("#st-figure").innerHTML = ""; return;
     }
+    try {
+      $("#st-figure").innerHTML = planFigure(P, S);
+      const pw = document.querySelector("#st-figure .plan-wrap");   // 手機上先捲到最新的 K 線
+      if (pw) pw.scrollLeft = pw.scrollWidth;
+    } catch (e) { $("#st-figure").innerHTML = ""; }
     $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fp(P.zone[0])}–${fp(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
     let lastTier = null;
     $("#st-batches").innerHTML = P.batches.map((b, i) => `${b.tier && b.tier !== lastTier ? `<tr class="tier"><td colspan="4">${esc(up ? (lastTier = b.tier) : (lastTier = b.tier).replace("回檔", "反彈"))}</td></tr>` : ""}<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fp(b.price)}</b></td><td>${esc(b.label)}</td>
@@ -144,6 +149,89 @@
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
     }).join("") : `<p class="sub">較小週期目前沒有進行中的逆向 C 浪可對照。</p>`);
+  }
+
+  // 布局圖解：K 線、波浪標示、三層回檔區、各批價位、失效價、目標與預期路徑，下面附文字解說
+  const TIER_INFO = {
+    "強勢回檔": "趨勢強時常只回到這裡就再出發，先放小量。",
+    "回檔滿足 1": "一般修正最常見的滿足區，布局主力。",
+    "回檔滿足 2": "最深的布局區，已接近波浪失效價，碰到時要先檢查數浪是否還成立。",
+  };
+  function planFigure(P, S) {
+    if (!P.bars || !P.bars.length || !P.batches) return "";
+    const up = P.dir === 1, B = P.bars, n = B.length, last = S.last;
+    const rv = (t) => up ? t : t.replace("回檔", "反彈");
+    const tiers = [];
+    P.batches.forEach((b, i) => {
+      let T = tiers.find((x) => x.name === b.tier);
+      if (!T) tiers.push(T = { name: b.tier, items: [] });
+      T.items.push(Object.assign({ n: i + 1 }, b));
+    });
+    const tgt = P.phase === "trend" ? (P.k === 2 ? P.t1 : P.t2) : P.t1;
+    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...P.batches.map((b) => b.price), P.invalid, tgt, last].filter((v) => v != null);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+    const Wd = 1000, Ht = 420, pl = 10, pr = 120, pt = 16, pb = 26, fut = 150;
+    const cw = (Wd - pl - pr - fut) / n;
+    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (hi - v) / (hi - lo) * (Ht - pt - pb);
+    const xr = Wd - pr, idx = (t) => B.findIndex((b) => b[0] === t);
+    let g = "";
+    const op = { "強勢回檔": 0.07, "回檔滿足 1": 0.14, "回檔滿足 2": 0.22 };
+    tiers.forEach((T) => {
+      const ps = T.items.map((x) => x.price), a = Math.max(...ps), b = Math.min(...ps);
+      g += `<rect x="${pl}" y="${Y(a)}" width="${xr - pl}" height="${Math.max(2, Y(b) - Y(a))}" class="tz ${up ? "u" : "d"}" style="opacity:${op[T.name] || 0.1}"/>`;
+    });
+    const ord = P.batches.map((b, i) => [Y(b.price), i]).sort((a, b) => a[0] - b[0]);
+    const ly0 = {}; let prevY = -99;
+    ord.forEach(([y, i]) => { const yy = Math.max(y, prevY + 13); ly0[i] = yy; prevY = yy; });
+    P.batches.forEach((b, i) => { g += `<line x1="${pl}" x2="${xr}" y1="${Y(b.price)}" y2="${Y(b.price)}" class="bl"/><text x="${xr + 6}" y="${ly0[i] + 4}" class="bt">${i + 1}｜${fp(b.price)}</text>`; });
+    tiers.forEach((T) => {
+      const ps = T.items.map((x) => x.price), m = (Math.max(...ps) + Math.min(...ps)) / 2;
+      g += `<text x="${xr - 8}" y="${Y(m) + 4}" class="tn" text-anchor="end">${rv(T.name)}</text>`;
+    });
+    if (P.invalid != null) g += `<line x1="${pl}" x2="${xr}" y1="${Y(P.invalid)}" y2="${Y(P.invalid)}" class="inv"/><text x="${xr + 6}" y="${Y(P.invalid) + 4}" class="it">失效 ${fp(P.invalid)}</text>`;
+    if (tgt != null) g += `<line x1="${pl}" x2="${xr}" y1="${Y(tgt)}" y2="${Y(tgt)}" class="tg"/><text x="${xr + 6}" y="${Y(tgt) + 4}" class="tt2">${P.phase === "trend" ? "預估" : "目標"} ${fp(tgt)}</text>`;
+    B.forEach((b, i) => {
+      const [, o, h, l, c] = b, cl = c >= o ? "u" : "d";
+      g += `<line x1="${X(i)}" x2="${X(i)}" y1="${Y(h)}" y2="${Y(l)}" class="w ${cl}"/><rect x="${X(i) - cw * 0.35}" y="${Y(Math.max(o, c))}" width="${Math.max(1, cw * 0.7)}" height="${Math.max(1, Math.abs(Y(o) - Y(c)))}" class="b ${cl}"/>`;
+    });
+    const wp = (P.points || []).map((p) => [idx(p[0]), p[1], p[2]]).filter((p) => p[0] >= 0);
+    if (wp.length > 1) g += `<polyline points="${wp.map((p) => `${X(p[0])},${Y(p[1])}`).join(" ")}" class="wl"/>`;
+    wp.forEach((p, j) => {
+      const isHigh = j > 0 ? p[1] > wp[j - 1][1] : p[1] < (wp[1] || p)[1] ? false : true;
+      const y = Y(p[1]) + (isHigh ? -10 : 18);
+      g += `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="4" class="wp"/><text x="${X(p[0])}" y="${y}" class="wt" text-anchor="middle">${p[2] === "0" ? "起點" : p[2]}</text>`;
+    });
+    // 預期路徑：推動浪中 → 先到預估終點再修正到布局區；修正中 → 進布局區後走向目標
+    const lx = X(n - 1), ly = Y(last), zm = P.zone ? (P.zone[0] + P.zone[1]) / 2 : null;
+    let path = "";
+    if (P.phase === "trend" && tgt != null && zm != null) path = `M${lx},${ly} L${lx + fut * 0.45},${Y(tgt)} L${lx + fut * 0.9},${Y(zm)}`;
+    else if (zm != null && tgt != null) {
+      const inZ = P.zone[0] <= last && last <= P.zone[1];
+      path = inZ ? `M${lx},${ly} L${lx + fut * 0.9},${Y(tgt)}` : `M${lx},${ly} L${lx + fut * 0.4},${Y(P.batches[0].price)} L${lx + fut * 0.9},${Y(tgt)}`;
+    }
+    if (path) g += `<path d="${path}" class="pp"/>`;
+    g += `<circle cx="${lx}" cy="${ly}" r="4.5" class="lp"/><text x="${lx + 8}" y="${ly - 8}" class="lt2">現價 ${fp(last)}</text>`;
+    const tl = [0, Math.floor(n / 3), Math.floor(2 * n / 3), n - 1].map((i) => `<text x="${X(i)}" y="${Ht - 8}" class="tt" text-anchor="middle">${B[i][0].slice(2, 16).replace(/-/g, "/")}</text>`).join("");
+    const svg = `<div class="plan-wrap"><svg class="plan-svg" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="${esc(P.tf_label)}波段布局圖">${g}${tl}</svg></div>`;
+    // ---- 文字解說 ----
+    const wname = up ? "回檔" : "反彈", act = up ? "買進" : "放空";
+    const base = (P.batches[0].label || "").split("的")[0];
+    const steps = [];
+    const chain = (P.points || []).map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${fp(p[1])}`).join(" → ");
+    steps.push(`<b>方向</b>：${esc(P.tf_label)}數出<b class="${up ? "up" : "down"}">${esc(P.trend)}</b>，目前在「${esc(P.now)}」。${chain ? `轉折：${esc(chain)}。` : ""}${P.vs_major ? `這個波段${esc(P.vs_major)}。` : ""}`);
+    if (P.phase === "trend") steps.push(`<b>現在不進場</b>：推動浪還在進行，不追價。預估走到 ${fp(tgt)} 附近後才會出現${wname}，圖上的色帶是預估的${wname}區，等推動浪真的結束會依實際${up ? "高" : "低"}點重算。`);
+    else steps.push(`<b>${wname}怎麼量</b>：以「${esc(base)}」這段走勢的長度，從${up ? "高" : "低"}點往回量比例，得到三層${wname}區。`);
+    tiers.forEach((T) => {
+      const ps = T.items.map((x) => x.price);
+      steps.push(`<b>${rv(T.name)}</b>（第 ${T.items.map((x) => x.n).join("、")} 批，${fp(Math.min(...ps))}–${fp(Math.max(...ps))}，比例 ${T.items.map((x) => x.ratio).join("／")}）：${esc(rv(TIER_INFO[T.name] || ""))}`);
+    });
+    const G = P.signal;
+    steps.push(`<b>進場</b>：價格碰到某一批後，不直接${act}，要等 ${esc(P.entry_tf || "較小週期")} K 走出 123（第 3 點不破第 1 點、收盤${up ? "突破" : "跌破"}第 2 點）才進已碰到的批次。${G && G.text ? "目前：" + esc(G.text) : ""}`);
+    if (P.invalid != null) steps.push(`<b>失效價 ${fp(P.invalid)}</b>：${esc(P.invalid_src || "")}。不設停損，但到這裡代表數浪被推翻，停止加碼、等重新數浪；下方表格算出抱單到這裡的浮動虧損。`);
+    steps.push(`<b>目標</b>：目標 1 ${fp(P.t1)}（${esc(P.t1_src)}），目標 2 ${fp(P.t2)}（${esc(P.t2_src)}）。`);
+    const legend = `<div class="pf-legend"><span><i class="lg-z"></i>${wname}三層（越深顏色越濃）</span><span><i class="lg-w"></i>波浪轉折</span><span><i class="lg-p"></i>預期路徑</span><span><i class="lg-i"></i>失效價</span><span><i class="lg-t"></i>${P.phase === "trend" ? "預估終點" : "目標 1"}</span></div>`;
+    return `<div class="st-head"><h3>${esc(P.tf_label)}布局圖解</h3></div>${svg}${legend}<ol class="pf-steps">${steps.map((x) => `<li>${x}</li>`).join("")}</ol>`;
   }
 
   // 60 分 K 小圖：K 棒、日線布局區（色帶）、各批價位與 1／2／3 點
