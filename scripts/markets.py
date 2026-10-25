@@ -68,10 +68,31 @@ def _get(url, params=None, tries=4):
 
 # ---------------- Yahoo ----------------
 
+_crumb = {}
+
+
+def _yahoo_json(symbol, params):
+    """先試 query1，再試 query2；被擋時取得 cookie／crumb 後重試。"""
+    errs = []
+    for host in ("query1", "query2"):
+        try:
+            return _get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}", params, tries=2).json()
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"{host}: {e}")
+    try:
+        if not _crumb:
+            _s.get("https://fc.yahoo.com", timeout=20)
+            _crumb["v"] = _s.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=20).text.strip()
+        p = dict(params, crumb=_crumb["v"])
+        return _get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}", p, tries=2).json()
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"crumb: {e}")
+    raise RuntimeError("；".join(errs))
+
+
 def yahoo(symbol, interval, rng):
     """回傳 (bars [(utc_ts, o, h, l, c)], gmtoffset 秒)。略過沒有價格的 K 棒。"""
-    j = _get(f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
-             {"interval": interval, "range": rng, "includePrePost": "false"}).json()
+    j = _yahoo_json(symbol, {"interval": interval, "range": rng, "includePrePost": "false"})
     res = (j.get("chart") or {}).get("result") or []
     if not res:
         raise RuntimeError(f"{symbol} {interval} 無資料：{(j.get('chart') or {}).get('error')}")
@@ -189,7 +210,7 @@ def analyze_market(m, tfs):
 
 def run(root: Path):
     out_dir = root / "data" / "markets"
-    index = []
+    index, errors = [], {}
     for m in MARKETS:
         try:
             tfs = fetch(m)
@@ -202,6 +223,7 @@ def run(root: Path):
             index.append({"id": m["id"], "name": m["name"], "tfs": [tf for tf in ("D", "H", "M30", "M5") if tf in W]})
         except Exception as e:  # noqa: BLE001
             log(m["name"], "失敗，保留舊資料：", e)
+            errors[m["id"]] = str(e)[:500]
             old = out_dir / f"{m['id']}.json"
             if old.exists():
                 o = json.loads(old.read_text(encoding="utf-8"))
@@ -209,6 +231,7 @@ def run(root: Path):
                               "tfs": [tf for tf in ("D", "H", "M30", "M5") if tf in o], "stale": True})
     if index:
         _dump(out_dir / "index.json", index)
+    _dump(out_dir / "_errors.json", {"at": datetime.now(TPE).isoformat(timespec="minutes"), "errors": errors})
 
 
 if __name__ == "__main__":
