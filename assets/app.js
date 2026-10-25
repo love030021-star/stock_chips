@@ -70,8 +70,8 @@
     if (!P || !P.batches || !P.batches.length || !P.dir) return "";
     const up = P.dir === 1, d = P.dir, lab = `${P.tf_label}布局`;
     const rv = (t) => up ? t : t.replace("回檔", "反彈");
-    if (P.stop != null && (px - P.stop) * d <= 0) return `${lab}：已${up ? "跌破" : "漲破"}失效停損 ${fp(P.stop)}`;
     if (P.phase === "trend") return `${lab}：推動浪進行中，預估${up ? "回檔" : "反彈"}區 ${fp(P.zone[0])}–${fp(P.zone[1])}`;
+    if (P.stop != null && (px - P.stop) * d <= 0) return `${lab}：已${up ? "跌破" : "漲破"}失效停損 ${fp(P.stop)}`;
     const hit = P.batches.map((b, i) => [b, i]).filter(([b]) => (px - b.price) * d <= 0);
     if (!hit.length) return `${lab}：距第 1 批 ${fp(P.batches[0].price)} 還有 ${fp(Math.abs(px - P.batches[0].price))}`;
     const [b, i] = hit[hit.length - 1];
@@ -90,11 +90,11 @@
     }
     const c = LIVE.chg;
     el.className = "live on";
-    el.innerHTML = `<span class="dot"></span><b>即時 ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}・${esc(LIVE.src)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
+    el.innerHTML = `<span class="dot"></span><b>${LIVE.stale ? "最新" : "即時"} ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}・${esc(LIVE.src)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
   }
   function liveStart(id) {
     liveStop();
-    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = "";
+    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false;
     if (id === "BTC") {
       LIVE.src = "Kraken";
       const open = () => {
@@ -127,7 +127,9 @@
           const prev = parseFloat(String(first[1]).replace(/,/g, ""));
           LIVE.px = v; LIVE.chg = prev ? (v / prev - 1) * 100 : null;
           const dt = String(j.date || "");
-          LIVE.t = `${dt.slice(4, 6)}/${dt.slice(6, 8)} ${last[0]}`;
+          const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10).replace(/-/g, "");
+          LIVE.stale = dt !== today;
+          LIVE.t = `${dt.slice(4, 6)}/${dt.slice(6, 8)} ${last[0]}${LIVE.stale ? "（非交易時段）" : ""}`;
           liveDraw(true);
         } catch (err) { /* 略過 */ }
       };
