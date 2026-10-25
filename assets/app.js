@@ -79,10 +79,19 @@
     if (!P.batches) { $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; return; }
     $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fmt(P.zone[0])}–${fmt(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
     $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fmt(b.price)}</b></td><td>${esc(b.label)}</td>
-      <td class="r"><input class="lots" type="number" min="0" step="1" value="1" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
+      <td class="r"><input class="lots" type="number" min="0" step="1" value="0" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
     document.querySelectorAll("#st-batches .lots").forEach((el) => el.addEventListener("input", calcCost));
-    $("#st-prod").onchange = calcCost;
-    calcCost();
+    // 記住使用者上次的設定（只存在這台瀏覽器）
+    try {
+      const saved = JSON.parse(localStorage.getItem("st-pref") || "{}");
+      if (saved.total) $("#st-total").value = saved.total;
+      if (saved.mode) $("#st-mode").value = saved.mode;
+      if (saved.prod) $("#st-prod").value = saved.prod;
+    } catch (e) { /* 無法讀取就用預設值 */ }
+    $("#st-total").oninput = allocate;
+    $("#st-mode").onchange = allocate;
+    $("#st-prod").onchange = () => { savePref(); calcCost(); };
+    allocate();
     const G = S.signal;
     $("#st-signal").innerHTML = `<div class="st-head"><h3>5 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
       <p>${esc(G ? G.text : "沒有 5 分 K 資料。")}</p>`;
@@ -96,11 +105,36 @@
     }).join("") : `<p class="sub">60 分、30 分目前沒有進行中的 C 浪可對照。</p>`);
   }
 
+  function savePref() {
+    try {
+      localStorage.setItem("st-pref", JSON.stringify({ total: +$("#st-total").value || 0, mode: $("#st-mode").value, prod: $("#st-prod").value }));
+    } catch (e) { /* 無法儲存就略過 */ }
+  }
+
+  // 依總口數分配到各批：平均分配時餘數給前面的批次（較容易成交），金字塔依 1:2:3 越深越多
+  function allocate() {
+    const inputs = [...document.querySelectorAll("#st-batches .lots")];
+    const total = Math.max(0, Math.floor(+$("#st-total").value || 0));
+    const w = $("#st-mode").value === "pyr" ? inputs.map((_, i) => i + 1) : inputs.map(() => 1);
+    const sw = w.reduce((a, b) => a + b, 0);
+    const raw = w.map((x) => (total * x) / sw);
+    const lots = raw.map(Math.floor);
+    let left = total - lots.reduce((a, b) => a + b, 0);
+    const order = raw.map((r, i) => [r - Math.floor(r), i])
+      .sort((a, b) => b[0] - a[0] || ($("#st-mode").value === "pyr" ? b[1] - a[1] : a[1] - b[1]));
+    for (const [, i] of order) { if (left <= 0) break; lots[i]++; left--; }
+    inputs.forEach((el, i) => { el.value = lots[i]; });
+    savePref();
+    calcCost();
+  }
+
   function calcCost() {
     const P = SP.plan, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
     const lots = [...document.querySelectorAll("#st-batches .lots")].map((el) => Math.max(0, +el.value || 0));
     const n = lots.reduce((a, b) => a + b, 0);
-    if (!n) { $("#st-calc").innerHTML = `<p class="sub">輸入各批口數即可計算平均成本。</p>`; return; }
+    const total = Math.floor(+$("#st-total").value || 0);
+    if (!n) { $("#st-calc").innerHTML = `<p class="sub">先輸入可下單總口數，系統會分配到各批並計算平均成本；各批口數也可以再自行調整。</p>`; return; }
+    const over = total && n !== total ? `<p class="st-exit warn">各批合計 ${n} 口，與可下單總口數 ${total} 口不同。</p>` : "";
     const avg = P.batches.reduce((a, b, i) => a + b.price * lots[i], 0) / n;
     const d = P.dir;
     const loss = (avg - P.stop) * d * n * mult;
@@ -119,7 +153,7 @@
       <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fmt(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> 元</td></tr>
       <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fmt(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> 元</td></tr>
       <tr><td>風險報酬比（目標 1）</td><td class="r">${rr.toFixed(2)}</td></tr>
-      </tbody></table><p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
+      </tbody></table>${over}<p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------

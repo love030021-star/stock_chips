@@ -330,3 +330,6 @@ select {
 .hit { display: inline-block; margin-left: 6px; font-size: 12px; color: var(--gold); font-weight: 600; }
 @media (max-width: 760px) { .st-trend { grid-template-columns: 1fr; } }
 .st-batch td:nth-child(3), .st-batch th:nth-child(3) { padding-left: 14px; } .st-batch td:nth-child(3) { color: var(--muted); }
+.st-alloc { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 4px 0 12px; font-size: 14px; color: var(--muted); }
+.st-alloc label { display: inline-flex; align-items: center; gap: 6px; }
+.st-alloc input { width: 96px; font: 600 15px var(--num); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
