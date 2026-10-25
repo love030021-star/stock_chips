@@ -394,8 +394,12 @@ def run(root: Path, fetch=True):
         end = today.strftime("%Y/%m/%d")
         try:
             large = parse_large(_post("/cht/3/largeTraderOptDown", {"queryStartDate": start, "queryEndDate": end}))
+            # 三大法人：結束日不能晚於最新資料日，否則期交所回傳錯誤
+            last_l = max(large).replace("-", "/") if large else end
             inst = parse_inst(_post("/cht/3/callsAndPutsDateDown",
-                                    {"queryStartDate": start, "queryEndDate": end, "commodityId": "TXO"}))
+                                    {"queryStartDate": start, "queryEndDate": last_l, "commodityId": "TXO"}))
+            if not inst:
+                raise RuntimeError("三大法人選擇權資料解析不到內容")
             old_l, old_i = _load(store / "large.json", {}), _load(store / "inst.json", {})
             old_l.update(large)
             old_i.update(inst)
