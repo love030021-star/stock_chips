@@ -2,17 +2,15 @@ name: 每日更新與部署
 
 on:
   schedule:
-    # 台北時間週一到週五 21:47、23:17（UTC 13:47、15:17）。融資資料約 21:30 公布，第二次是補跑。
+    # 台北時間週一到週五 21:47、23:17（UTC 13:47、15:17）：期交所盤後資料，第二次是補跑。
     - cron: "47 13 * * 1-5"
     - cron: "17 15 * * 1-5"
+    # 台北時間週二到週六 06:17（美股收盤後），更新小娜、黃金、原油
+    - cron: "17 22 * * 1-5"
   push:
     branches: [main]
     paths-ignore: ["data/**"]
   workflow_dispatch:
-    inputs:
-      date:
-        description: "指定日期 YYYY-MM-DD（留空為今天）"
-        required: false
 
 permissions:
   contents: write
@@ -45,11 +43,7 @@ jobs:
         env:
           TZ: Asia/Taipei
         run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            python scripts/update.py --date "${{ github.event.inputs.date }}"
-          else
-            python scripts/update.py
-          fi
+          python scripts/update.py
 
       - name: 提交資料
         if: github.event_name != 'push'

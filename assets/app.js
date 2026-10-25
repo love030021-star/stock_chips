@@ -1,63 +1,71 @@
 (() => {
   "use strict";
   const $ = (s) => document.querySelector(s);
-  const MK = { twse: "上市", tpex: "上櫃", all: "全部" };
-  const state = { stTf: "D", waveTf: "D", pickMarket: "twse", histMarket: "twse", dtSide: "long", volMarket: "twse", turnMarket: "twse" };
-  let D = null, H = null, W = null;
+  const state = { mkt: "TX", stTf: "D", waveTf: "D" };
+  let W = null, SP = null;
+  const CACHE = {};
+  const MARKETS = [{ id: "TX", name: "台指期", tfs: ["D", "H", "M30", "M5"] }];
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString("zh-TW", { minimumFractionDigits: d, maximumFractionDigits: d });
+  // 價格：千元以上不顯示小數，以下顯示兩位（原油、櫃買指數）
+  const fp = (n, d) => n == null ? "—" : fmt(n, d != null ? d : Math.abs(n) < 1000 ? 2 : 0);
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
-  const pct = (n) => n == null ? "—" : `${n > 0 ? "+" : ""}${fmt(n, 2)}%`;
-  const price = (n) => fmt(n, n != null && n < 50 ? 2 : n < 1000 ? 1 : 0);
-  const stk = (x, extra = "") =>
-    `<td class="stk"><b>${esc(x.name)}</b><small class="num">${esc(x.code)}</small> <small>${esc(x.ind || "")}${x.market && state._showMkt ? "、" + MK[x.market] : ""}</small>${extra}</td>`;
+  const getJSON = (u) => fetch(`${u}?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+  async function loadMarket(id) {
+    if (!CACHE[id]) {
+      if (id === "TX") {
+        const [w, s] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
+        CACHE[id] = { W: w, S: s };
+      } else {
+        const m = await getJSON(`data/markets/${id}.json`);
+        CACHE[id] = { W: m, S: m && m.strategy };
+      }
+    }
+    return CACHE[id];
+  }
+
+  function syncTfButtons() {
+    const m = MARKETS.find((x) => x.id === state.mkt) || MARKETS[0];
+    ["waveTf", "stTf"].forEach((g) => {
+      const btns = [...document.querySelectorAll(`[data-group=${g}] button`)];
+      btns.forEach((b) => { b.disabled = !m.tfs.includes(b.dataset.v); });
+      if (!m.tfs.includes(state[g])) state[g] = "D";
+      btns.forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === state[g]));
+    });
+  }
+
+  async function showMarket(id) {
+    state.mkt = id;
+    document.querySelectorAll("#mkt-tabs button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === id));
+    syncTfButtons();
+    const d = await loadMarket(id);
+    if (state.mkt !== id) return;
+    W = d.W; SP = null;
+    renderWave();
+    renderStrategy(d.S);
+    try { localStorage.setItem("mkt", id); } catch (e) { /* 略過 */ }
+  }
 
   async function load() {
-    fetch(`data/wave.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      .then((w) => { W = w; renderWave(); });
-    fetch(`data/chips.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      .then((c) => renderChips(c));
-    fetch(`data/strategy.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      .then((x) => renderStrategy(x));
-    try {
-      const v = Date.now().toString(36);
-      [D, H] = await Promise.all([
-        fetch(`data/latest.json?v=${v}`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-        fetch(`data/history.json?v=${v}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      ]);
-    } catch (e) {
-      $("#data-date").textContent = "尚無資料";
-      $("#pick-list").innerHTML = `<li class="empty">還沒有產生資料。第一次每日排程跑完後，這裡會出現當天的推薦名單。</li>`;
-      return;
+    const idx = await getJSON("data/markets/index.json");
+    (idx || []).forEach((m) => MARKETS.push(m));
+    $("#mkt-tabs").innerHTML = MARKETS.map((m) => `<button data-v="${m.id}" aria-pressed="${m.id === "TX"}">${esc(m.name.replace(/（.*）/, ""))}</button>`).join("");
+    $("#mkt-tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showMarket(b.dataset.v); });
+    let start = "TX";
+    try { const s = localStorage.getItem("mkt"); if (s && MARKETS.some((m) => m.id === s)) start = s; } catch (e) { /* 略過 */ }
+    const tx = await loadMarket("TX");
+    if (tx.W && tx.W.D) {
+      const R = tx.W.D, t = R.partial && R.bars.length > 1 ? R.bars[R.bars.length - 2][0] : R.last.t;
+      const d = new Date(t + "T00:00:00");
+      $("#data-date").textContent = `${t.replaceAll("-", "/")}（${"日一二三四五六"[d.getDay()]}）${R.partial ? "，另含收盤後夜盤" : ""}`;
     }
-    renderHeader(); renderPicks(); renderHistory(); renderDaytrade(); renderVolume(); renderTurnover();
+    showMarket(start);
+    getJSON("data/chips.json").then((c) => renderChips(c));
   }
-
-  function renderHeader() {
-    const d = new Date(D.date + "T00:00:00");
-    const wk = "日一二三四五六"[d.getDay()];
-    $("#data-date").textContent = `${D.date.replaceAll("-", "/")}（${wk}）`;
-    const ix = D.index && D.index.twse;
-    if (ix && ix.close) {
-      $("#index-box").hidden = false;
-      $("#idx-close").textContent = fmt(ix.close, 2);
-      const el = $("#idx-chg");
-      el.textContent = `${ix.chg > 0 ? "▲" : ix.chg < 0 ? "▼" : ""} ${fmt(Math.abs(ix.chg), 2)}（${pct(ix.pct)}）`;
-      el.className = "idx-chg num " + cls(ix.chg);
-    }
-    const t = D.tdcc || {};
-    $("#tdcc-note").textContent = t.date
-      ? `目前使用的集保資料：${t.date}${t.prev ? `，與 ${t.prev} 比較` : "（尚無前一週資料可比較，大戶項目暫時以 0 分計）"}。`
-      : "尚未取得集保資料，大戶項目暫時以 0 分計。";
-    $("#gen-note").textContent = `本次資料產生時間：${(D.generated_at || "").replace("T", " ")}，使用 ${D.trading_days} 個交易日的歷史資料。`;
-  }
-
-
-
 
   // ---------- 波段逆勢布局 ----------
-  let SP = null;
   function renderStrategy(S) {
     try { drawStrategy(S); } catch (e) {
       console.error(e);
@@ -66,14 +74,18 @@
   }
 
   function drawStrategy(S) {
-    if (!S) { $("#st-meta").textContent = "策略資料還沒產生，下一次每日更新後會出現。"; return; }
+    if (!S) {
+      $("#st-meta").textContent = "這個商品的波段布局資料還沒產生，下一次每日更新後會出現。";
+      ["#st-trend", "#st-batches", "#st-calc", "#st-signal", "#st-abc"].forEach((k) => { $(k).innerHTML = ""; });
+      return;
+    }
     if (!S.plans && S.plan) S = Object.assign({}, S, { plans: { D: Object.assign({ tf: "D", tf_label: "日線", data_t: S.daily_t || "", data_close: S.daily_close, abc: S.abc || [], signal: S.signal }, S.plan) } });
     SP = S;
     const P = S.plans && (S.plans[state.stTf] || S.plans.D);
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
-    $("#st-meta").textContent = `${P.tf_label}（全日盤）資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fmt(P.data_close)}），5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fmt(S.last)}）。`;
-    const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fmt(p[1])}`).join(" → ");
+    $("#st-meta").textContent = `${W.contract}，${P.tf_label}${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}）${W && W.M5 ? `，5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fp(S.last)}）` : "，這個商品沒有 5 分 K，進場訊號請自行確認"}。`;
+    const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fp(p[1])}`).join(" → ");
     const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
       <div class="st-big ${up ? "up" : P.dir === -1 ? "down" : ""}">
@@ -92,16 +104,21 @@
       $("#st-batches").innerHTML = `<tr><td colspan="4" class="sub">這個週期目前沒有可布局的推動浪結構。</td></tr>`;
       $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return;
     }
-    $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fmt(P.zone[0])}–${fmt(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
-    $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fmt(b.price)}</b></td><td>${esc(b.label)}</td>
+    $("#st-zone-title").textContent = P.phase === "correct" ? `${up ? "回檔" : "反彈"}區間分批：${fp(P.zone[0])}–${fp(P.zone[1])}` : `預估下一個${up ? "回檔" : "反彈"}區`;
+    $("#st-batches").innerHTML = P.batches.map((b, i) => `<tr><td>第 ${i + 1} 批</td><td class="r num"><b>${fp(b.price)}</b></td><td>${esc(b.label)}</td>
       <td class="r"><input class="lots" type="number" min="0" step="1" value="0" data-i="${i}" aria-label="第 ${i + 1} 批口數"></td></tr>`).join("");
     document.querySelectorAll("#st-batches .lots").forEach((el) => el.addEventListener("input", calcCost));
-    // 記住使用者上次的設定（只存在這台瀏覽器）
+    // 商品選項依各市場的每點價值產生；記住使用者上次的設定（只存在這台瀏覽器）
+    const prods = Object.keys(S.pt || {});
+    $("#st-prod").innerHTML = prods.map((k) => `<option>${esc(k)}</option>`).join("");
+    $("#st-prod").closest("label").hidden = prods.length < 2;
     try {
       const saved = JSON.parse(localStorage.getItem("st-pref") || "{}");
       if (saved.total) $("#st-total").value = saved.total;
       if (saved.mode) $("#st-mode").value = saved.mode;
-      if (saved.prod) $("#st-prod").value = saved.prod;
+      const sp = (saved.prod || {})[state.mkt];
+      if (sp && prods.includes(sp)) $("#st-prod").value = sp;
+      else if (prods.includes("小台")) $("#st-prod").value = "小台";
     } catch (e) { /* 無法讀取就用預設值 */ }
     $("#st-total").oninput = allocate;
     $("#st-mode").onchange = allocate;
@@ -112,17 +129,20 @@
       <p>${esc(G ? G.text : "沒有 5 分 K 資料。")}</p>`;
     $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
-      return `<p>${esc(a.tf)}：A 浪 ${fmt(o[1])} → ${fmt(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fmt(B[1])}，C 浪進行中。</p>
+      return `<p>${esc(a.tf)}：A 浪 ${fp(o[1])} → ${fp(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fp(B[1])}，C 浪進行中。</p>
         <table><tbody>${a.targets.map((t) => {
           const inZone = P.zone && t.price >= P.zone[0] && t.price <= P.zone[1];
-          return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`;
+          return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
     }).join("") : `<p class="sub">較小週期目前沒有進行中的 C 浪可對照。</p>`);
   }
 
   function savePref() {
     try {
-      localStorage.setItem("st-pref", JSON.stringify({ total: +$("#st-total").value || 0, mode: $("#st-mode").value, prod: $("#st-prod").value }));
+      const old = JSON.parse(localStorage.getItem("st-pref") || "{}");
+      const prod = typeof old.prod === "object" && old.prod ? old.prod : {};
+      prod[state.mkt] = $("#st-prod").value;
+      localStorage.setItem("st-pref", JSON.stringify({ total: +$("#st-total").value || 0, mode: $("#st-mode").value, prod }));
     } catch (e) { /* 無法儲存就略過 */ }
   }
 
@@ -144,7 +164,8 @@
   }
 
   function calcCost() {
-    const P = SP.plans[state.stTf] || SP.plans.D, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod];
+    const P = SP.plans[state.stTf] || SP.plans.D, up = P.dir === 1, prod = $("#st-prod").value, mult = SP.pt[prod] || 1;
+    const unit = (W && W.unit) || "元", money = unit === "點" ? "點" : unit;
     const lots = [...document.querySelectorAll("#st-batches .lots")].map((el) => Math.max(0, +el.value || 0));
     const n = lots.reduce((a, b) => a + b, 0);
     const total = Math.floor(+$("#st-total").value || 0);
@@ -160,15 +181,15 @@
       if (!lots[i]) return;
       cum += lots[i];
       const a = P.batches.slice(0, i + 1).reduce((s, x, j) => s + x.price * lots[j], 0) / cum;
-      rows += `<tr><td>成交到第 ${i + 1} 批</td><td class="r">${cum} 口，均價 ${fmt(a)}</td></tr>`;
+      rows += `<tr><td>成交到第 ${i + 1} 批</td><td class="r">${cum} 口，均價 ${fp(a)}</td></tr>`;
     });
     $("#st-calc").innerHTML = `<table><tbody>${rows}
-      <tr><td><b>全部成交平均成本</b></td><td class="r"><b>${fmt(avg)}</b></td></tr>
-      <tr><td>停損（${esc(P.stop_src)}）</td><td class="r">${fmt(P.stop)}，虧損 <span class="down">${fmt(loss)}</span> 元</td></tr>
-      <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fmt(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> 元</td></tr>
-      <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fmt(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> 元</td></tr>
+      <tr><td><b>全部成交平均成本</b></td><td class="r"><b>${fp(avg)}</b></td></tr>
+      <tr><td>停損（${esc(P.stop_src)}）</td><td class="r">${fp(P.stop)}，虧損 <span class="down">${fmt(loss)}</span> ${money}</td></tr>
+      <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fp(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> ${money}</td></tr>
+      <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fp(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> ${money}</td></tr>
       <tr><td>風險報酬比（目標 1）</td><td class="r">${rr.toFixed(2)}</td></tr>
-      </tbody></table>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${prod}每點 ${mult} 元。部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
+      </tbody></table>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${unit === "點" ? "指數沒有每點價值，損益以點數 × 口數表示。" : `${esc(prod)}每點 ${mult} ${unit}。`}部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------
@@ -228,11 +249,11 @@
     const box = $("#wave-chart"), cards = $("#wave-counts");
     const R = W && W[state.waveTf];
     if (!R) {
-      $("#wave-meta").textContent = "台指期資料還沒產生，下一次每日更新後會出現。";
+      $("#wave-meta").textContent = W ? "這個商品沒有此週期的資料。" : "資料還沒產生，下一次每日更新後會出現。";
       box.innerHTML = ""; cards.innerHTML = "";
       return;
     }
-    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}${R.partial ? "（最後一根是收盤後的夜盤，交易日尚未結束）" : ""}。圖上虛線為 ${R.threshold} 的轉折。`;
+    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fp(R.last.c)}${R.partial ? "（最後一根是收盤後的夜盤，交易日尚未結束）" : ""}。圖上虛線為 ${R.threshold} 的轉折。`;
     box.innerHTML = waveSvg(R);
     box.dataset.w = box.clientWidth;
     const [p, a] = R.counts;
@@ -247,12 +268,12 @@
   });
 
   function countCard(c, title, k) {
-    const rows = c.targets.map((t) => `<tr class="${t.reached ? "done" : ""}"><td>${esc(t.name)}${t.reached ? "（已到）" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`).join("");
+    const rows = c.targets.map((t) => `<tr class="${t.reached ? "done" : ""}"><td>${esc(t.name)}${t.reached ? "（已到）" : ""}</td><td class="r">${fp(t.price)}</td></tr>`).join("");
     return `<div class="wave-card ${k}">
       <h3>${title}：${esc(c.now)}</h3>
       <div class="kind">${esc(c.pattern)}，轉折門檻 ${esc(c.threshold || "")} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
       <p>${esc(c.text)}</p>
-      <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fmt(c.invalid.price)}</td></tr></tbody></table>
+      <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fp(c.invalid.price)}</td></tr></tbody></table>
     </div>`;
   }
 
@@ -296,12 +317,12 @@
     } else {
       const pts = prim.points, next = prim.targets.find((t) => !t.reached);
       const seq = pts.slice(1).map((p) => p[2]).join("-");
-      add("note-m", `台指期近月 ${R.name}，${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}`, f2, lh);
+      add("note-m", `${W.contract} ${R.name}，${R.last.t.replaceAll("-", "/")} 收 ${fp(R.last.c)}`, f2, lh);
       add("note-h", `主要推算：${prim.now}（${prim.pattern}）`, f1, f1 + 8);
-      add("note-t", `${fmt(pts[0][1])} → ${fmt(pts[pts.length - 1][1])} 已走完 ${seq}，各段比例標在線旁。`, f2, lh);
-      if (next) add("note-g", `推演：往 ${fmt(next.price)}（${next.name}）前進，見右側虛線箭頭。`, f2, lh);
-      add("note-t", `${prim.invalid.note} ${fmt(prim.invalid.price)} 此推算失效（灰色點線）。`, f2, lh);
-      if (alt) add("note-m", `替代推算：${alt.now}（${alt.pattern}），失效 ${fmt(alt.invalid.price)}，圖上藍色虛線。`, f2, lh);
+      add("note-t", `${fp(pts[0][1])} → ${fp(pts[pts.length - 1][1])} 已走完 ${seq}，各段比例標在線旁。`, f2, lh);
+      if (next) add("note-g", `推演：往 ${fp(next.price)}（${next.name}）前進，見右側虛線箭頭。`, f2, lh);
+      add("note-t", `${prim.invalid.note} ${fp(prim.invalid.price)} 此推算失效（灰色點線）。`, f2, lh);
+      if (alt) add("note-m", `替代推算：${alt.now}（${alt.pattern}），失效 ${fp(alt.invalid.price)}，圖上藍色虛線。`, f2, lh);
     }
     return { rows, h: 16 + rows.reduce((a, r) => a + r.h, 0) };
   }
@@ -325,8 +346,8 @@
     const next = prim ? prim.targets.find((t) => !t.reached) : null;
     if (prim) {
       prim.targets.filter((t) => !t.reached).slice(0, 3).forEach((t) =>
-        lines.push({ v: t.price, cls: "tgt", txt: `${t.name}　${fmt(t.price)}` }));
-      lines.push({ v: prim.invalid.price, cls: "inv", txt: `失效 ${fmt(prim.invalid.price)}` });
+        lines.push({ v: t.price, cls: "tgt", txt: `${t.name}　${fp(t.price)}` }));
+      lines.push({ v: prim.invalid.price, cls: "inv", txt: `失效 ${fp(prim.invalid.price)}` });
     }
     lines.forEach((l) => { if (l.v > hi && l.v < hi + span0 * 0.6) hi = l.v; if (l.v < lo && l.v > lo - span0 * 0.6) lo = l.v; });
     const pad = (hi - lo) * 0.06; hi += pad; lo -= pad;
@@ -344,7 +365,7 @@
     // 格線與座標
     const step = niceStep((hi - lo) / 6);
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
-      s += `<line class="grid-l" x1="${L}" x2="${plotR}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${plotR + 6}" y="${Y(v) + 4}">${fmt(v)}</text>`;
+      s += `<line class="grid-l" x1="${L}" x2="${plotR}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${plotR + 6}" y="${Y(v) + 4}">${fp(v)}</text>`;
     }
     let lastLab = "", lx = -999;
     bars.forEach((b, i) => {
@@ -411,7 +432,7 @@
     });
     s += `</g>`;
     // 最新價
-    s += `<rect class="now-b" x="${plotR + 2}" y="${Y(lc) - 9}" width="${Rm - 4}" height="18" rx="3"/><text class="now-t" x="${plotR + 6}" y="${Y(lc) + 4}">${fmt(lc)}</text>`;
+    s += `<rect class="now-b" x="${plotR + 2}" y="${Y(lc) - 9}" width="${Rm - 4}" height="18" rx="3"/><text class="now-t" x="${plotR + 6}" y="${Y(lc) + 4}">${fp(lc)}</text>`;
     return s + "</svg>";
   }
 
@@ -421,150 +442,12 @@
     return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
   }
 
-  // ---------- 推薦 ----------
-  function pickList() {
-    const m = state.pickMarket;
-    const list = m === "all" ? [...D.picks.twse, ...D.picks.tpex] : D.picks[m].slice();
-    const key = $("#pick-sort").value;
-    list.sort((a, b) => (b[key] ?? -1e9) - (a[key] ?? -1e9));
-    return list;
-  }
-
-  function renderPicks() {
-    const m = state.pickMarket;
-    const list = pickList();
-    $("#picks-title").textContent = m === "all" ? `上市、上櫃推薦 ${list.length} 檔` : `${MK[m]}推薦 ${list.length} 檔`;
-    const up = list.filter((x) => x.pct > 0).length, dn = list.filter((x) => x.pct < 0).length;
-    const avg = list.length ? list.reduce((s, x) => s + x.score, 0) / list.length : 0;
-    const inds = {};
-    list.forEach((x) => (inds[x.ind] = (inds[x.ind] || 0) + 1));
-    const top = Object.entries(inds).sort((a, b) => b[1] - a[1])[0];
-    $("#pick-stats").innerHTML = `
-      <div><dt>推薦檔數</dt><dd>${list.length}</dd></div>
-      <div><dt>平均推薦分數</dt><dd>${fmt(avg, 1)}</dd></div>
-      <div><dt>上漲／下跌</dt><dd><span class="up">${up}</span>／<span class="down">${dn}</span></dd></div>
-      <div><dt>最多檔的產業</dt><dd class="txt">${top ? `${esc(top[0])} ${top[1]} 檔` : "—"}</dd></div>`;
-    if (!list.length) {
-      $("#pick-list").innerHTML = `<li class="empty">今天沒有符合條件的股票。</li>`;
-      return;
-    }
-    const names = ["法人當日", "法人 5 日", "連買", "大戶", "融資"];
-    const max = [25, 25, 10, 25, 15];
-    $("#pick-list").innerHTML = list.map((x, i) => `
-      <li class="pick">
-        <button aria-expanded="false">
-          <span class="rank">${i + 1}</span>
-          <span class="who"><span class="nm">${esc(x.name)}</span>
-            <span class="meta"><span class="num">${esc(x.code)}</span> ${esc(x.ind)}${m === "all" ? "、" + MK[x.market] : ""}</span></span>
-          <span class="px"><span class="c">${price(x.close)}</span><br><span class="p ${cls(x.pct)}">${pct(x.pct)}</span></span>
-          <span class="sc"><span class="v">${fmt(x.score, 1)}</span>
-            <span class="bar" aria-hidden="true">${x.parts.map((p) => `<i style="width:${p}%"></i>`).join("")}</span></span>
-        </button>
-        <div class="detail">
-          <ul class="chips">${x.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
-          <div class="parts">${x.parts.map((p, k) => `<div><i style="background:var(--s${k + 1})"></i>${names[k]}<b>${fmt(p, 1)}<small> / ${max[k]}</small></b></div>`).join("")}</div>
-          <p class="sub">成交量 ${fmt(x.vol)} 張，成交金額 ${fmt(x.amt, 2)} 億${x.big != null ? `，千張大戶持股 ${fmt(x.big, 2)}%` : ""}</p>
-        </div>
-      </li>`).join("");
-  }
-
-  $("#pick-list").addEventListener("click", (e) => {
-    const b = e.target.closest(".pick > button");
-    if (!b) return;
-    const li = b.parentElement;
-    const open = li.classList.toggle("open");
-    b.setAttribute("aria-expanded", open);
-  });
-  $("#pick-sort").addEventListener("change", renderPicks);
-
-  // ---------- 歷史 ----------
-  function renderHistory() {
-    const sel = $("#hist-date");
-    if (!H || !H.days.length) {
-      $("#hist-table").innerHTML = `<tbody><tr><td class="empty">累積兩個交易日以上的推薦後，這裡會列出過去的名單與之後的漲跌。</td></tr></tbody>`;
-      return;
-    }
-    if (!sel.options.length) {
-      sel.innerHTML = H.days.map((d) => `<option>${d.date}</option>`).join("");
-      if (H.days.length > 1) sel.selectedIndex = 1;
-      sel.addEventListener("change", renderHistory);
-    }
-    const day = H.days.find((d) => d.date === sel.value) || H.days[0];
-    const m = state.histMarket;
-    const last = H.last_close[m] || {};
-    const rows = (day.picks[m] || []).map(([code, name, close, score]) => {
-      const now = last[code];
-      const ret = now != null && close ? (now / close - 1) * 100 : null;
-      return { code, name, close, score, now, ret };
-    });
-    const rets = rows.filter((r) => r.ret != null);
-    const avg = rets.length ? rets.reduce((s, r) => s + r.ret, 0) / rets.length : null;
-    const win = rets.filter((r) => r.ret > 0).length;
-    $("#hist-summary").innerHTML = day.date === H.date
-      ? `這是今天（${day.date}）的名單，還沒有後續漲跌。選更早的日期可以看推薦後的表現。`
-      : `${day.date} 的${MK[m]}名單，以推薦當天收盤價計算到 ${H.date} 收盤：平均 <span class="num ${cls(avg)}">${pct(avg)}</span>，上漲 ${win} 檔／共 ${rets.length} 檔。`;
-    $("#hist-table").innerHTML = `
-      <thead><tr><th>名次</th><th>股票</th><th class="r">分數</th><th class="r">推薦日收盤</th><th class="r">最新收盤</th><th class="r">之後漲跌</th></tr></thead>
-      <tbody>${rows.map((r, i) => `<tr>
-        <td class="num">${i + 1}</td>
-        <td class="stk"><b>${esc(r.name)}</b><small class="num">${esc(r.code)}</small></td>
-        <td class="r num">${fmt(r.score, 1)}</td>
-        <td class="r num">${price(r.close)}</td>
-        <td class="r num">${price(r.now)}</td>
-        <td class="r num ${cls(r.ret)}">${day.date === H.date ? "—" : pct(r.ret)}</td></tr>`).join("")}</tbody>`;
-  }
-
-  // ---------- 當沖 ----------
-  function renderDaytrade() {
-    const list = D.daytrade[state.dtSide] || [];
-    state._showMkt = true;
-    $("#dt-table").innerHTML = list.length ? `
-      <thead><tr><th>名次</th><th>股票與理由</th><th class="r">收盤</th><th class="r">漲跌幅</th><th class="r">週轉率</th><th class="r">當沖比率</th><th class="r">量增</th><th class="r">法人(張)</th><th class="r">分數</th></tr></thead>
-      <tbody>${list.map((x) => `<tr>
-        <td class="num">${x.rank}</td>
-        ${stk(x, `<span class="why">${x.reasons.map(esc).join("，")}</span>${x.tag ? `<span class="tag">${esc(x.tag)}</span>` : ""}`)}
-        <td class="r num">${price(x.close)}</td>
-        <td class="r num ${cls(x.pct)}">${pct(x.pct)}</td>
-        <td class="r num">${fmt(x.turn, 2)}%</td>
-        <td class="r num">${fmt(x.dtr, 1)}%</td>
-        <td class="r num">${fmt(x.volx, 1)} 倍</td>
-        <td class="r num ${cls(x.inst)}">${fmt(x.inst)}</td>
-        <td class="r num">${fmt(x.score, 1)}</td></tr>`).join("")}</tbody>`
-      : `<tbody><tr><td class="empty">今天沒有符合條件的股票。</td></tr></tbody>`;
-    state._showMkt = false;
-  }
-
-  // ---------- 成交量、週轉率 ----------
-  function renderVolume() {
-    const m = state.volMarket;
-    $("#vol-title").textContent = `${MK[m]}成交量前 20 名`;
-    const list = D.volume[m] || [];
-    $("#vol-table").innerHTML = `
-      <thead><tr><th>名次</th><th>股票</th><th class="r">收盤</th><th class="r">漲跌幅</th><th class="r">成交金額(億)</th><th class="r">週轉率</th><th class="r">成交量(張)</th></tr></thead>
-      <tbody>${list.map((x) => `<tr><td class="num">${x.rank}</td>${stk(x)}
-        <td class="r num">${price(x.close)}</td><td class="r num ${cls(x.pct)}">${pct(x.pct)}</td>
-        <td class="r num">${fmt(x.amt, 2)}</td><td class="r num">${x.turn == null ? "—" : fmt(x.turn, 2) + "%"}</td>
-        <td class="r num"><b>${fmt(x.vol)}</b></td></tr>`).join("")}</tbody>`;
-  }
-  function renderTurnover() {
-    const m = state.turnMarket;
-    $("#turn-title").textContent = `${MK[m]}週轉率前 20 名`;
-    const list = D.turnover[m] || [];
-    $("#turn-table").innerHTML = `
-      <thead><tr><th>名次</th><th>股票</th><th class="r">收盤</th><th class="r">漲跌幅</th><th class="r">成交量(張)</th><th class="r">成交金額(億)</th><th class="r">週轉率</th></tr></thead>
-      <tbody>${list.map((x) => `<tr><td class="num">${x.rank}</td>${stk(x)}
-        <td class="r num">${price(x.close)}</td><td class="r num ${cls(x.pct)}">${pct(x.pct)}</td>
-        <td class="r num">${fmt(x.vol)}</td><td class="r num">${fmt(x.amt, 2)}</td>
-        <td class="r num"><b>${fmt(x.turn, 2)}%</b></td></tr>`).join("")}</tbody>`;
-  }
-
   // ---------- 切換按鈕 ----------
-  const renderers = { stTf: () => renderStrategy(SP), waveTf: () => renderWave(), pickMarket: renderPicks, histMarket: renderHistory, dtSide: renderDaytrade, volMarket: renderVolume, turnMarket: renderTurnover };
-  document.querySelectorAll(".seg-ctl").forEach((g) => {
+  const renderers = { stTf: () => renderStrategy(SP), waveTf: () => renderWave() };
+  document.querySelectorAll(".seg-ctl[data-group]").forEach((g) => {
     g.addEventListener("click", (e) => {
       const b = e.target.closest("button");
-      const need = { waveTf: W, stTf: SP }[g.dataset.group];
-      if (!b || (g.dataset.group in { waveTf: 1, stTf: 1 } ? !need : !D)) return;
+      if (!b || b.disabled || !renderers[g.dataset.group]) return;
       g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
       state[g.dataset.group] = b.dataset.v;
       renderers[g.dataset.group]();

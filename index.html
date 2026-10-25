@@ -3,77 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>籌碼選股日報</title>
-<meta name="description" content="每個交易日盤後，依三大法人、千張大戶與融資變化，替上市、上櫃股票計分排名。">
+<title>波浪籌碼日報</title>
+<meta name="description" content="台指期、加權指數、櫃買指數、小娜、黃金與布蘭特原油的艾略特波浪推算、台指選擇權籌碼與逆勢分批布局。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251300">
+<link rel="stylesheet" href="assets/style.css?v=202610251410">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
 <div class="notice" role="note">
-  本站不是證券投資顧問，名單是用公開資料依固定規則篩選的結果，不構成投資建議。<a href="#disclaimer">完整聲明</a>
+  本站不是證券或期貨投資顧問，內容是用公開資料依固定規則計算的結果，不構成投資建議。<a href="#disclaimer">完整聲明</a>
 </div>
 
 <nav class="tabs" aria-label="頁面區塊">
-  <a href="#picks">今日推薦</a>
-  <a href="#wave">台指期波浪</a>
-  <a href="#chips">選擇權籌碼</a>
+  <a href="#wave">波浪推算</a>
   <a href="#strategy">波段布局</a>
-  <a href="#history">歷史清單</a>
-  <a href="#daytrade">當沖熱門</a>
-  <a href="#volume">成交量</a>
-  <a href="#turnover">週轉率</a>
-  <a href="#method">評分方式</a>
+  <a href="#chips">選擇權籌碼</a>
   <a href="#sources">資料來源</a>
 </nav>
 
 <header class="hero" id="top">
-  <p class="hero-date"><span id="data-date">載入中</span> 盤後</p>
-  <h1 class="hero-title"><span>法人</span><span>大戶</span><span>融資</span></h1>
-  <p class="hero-lede">每個交易日收盤後，比對證交所、櫃買中心與集保資料，依三大法人、千張大戶和融資變化計分，上市、上櫃各選 20 檔。</p>
-  <div class="hero-index" id="index-box" hidden>
-    <span class="idx-name">加權指數</span>
-    <span class="idx-close num" id="idx-close"></span>
-    <span class="idx-chg num" id="idx-chg"></span>
-  </div>
-  <div class="weightbar" aria-label="分數組成">
-    <span style="--w:25" class="seg s1">法人當日 25</span>
-    <span style="--w:25" class="seg s2">法人 5 日 25</span>
-    <span style="--w:10" class="seg s3">連買 10</span>
-    <span style="--w:25" class="seg s4">大戶 25</span>
-    <span style="--w:15" class="seg s5">融資 15</span>
-  </div>
+  <p class="hero-date">台指期資料到 <span id="data-date">載入中</span></p>
+  <h1 class="hero-title"><span>波浪</span><span>籌碼</span><span>布局</span></h1>
+  <p class="hero-lede">每天收盤後，替台指期、加權指數、櫃買指數、小娜、1oz 黃金與布蘭特原油數出艾略特波浪，加上台指選擇權籌碼，列出逆勢分批布局的價位。</p>
 </header>
 
 <main>
-  <section id="picks" class="block">
-    <div class="block-head">
-      <h2 id="picks-title">上市推薦 20 檔</h2>
-      <div class="controls">
-        <div class="seg-ctl" role="group" aria-label="市場" data-group="pickMarket">
-          <button data-v="twse" aria-pressed="true">上市</button>
-          <button data-v="tpex">上櫃</button>
-          <button data-v="all">全部</button>
-        </div>
-        <label class="sort">排序
-          <select id="pick-sort">
-            <option value="score">推薦分數</option>
-            <option value="pct">漲跌幅</option>
-            <option value="vol">成交量</option>
-          </select>
-        </label>
-      </div>
-    </div>
-    <dl class="stats" id="pick-stats"></dl>
-    <ol class="picks" id="pick-list"></ol>
-    <p class="hint">點一下個股可展開入選理由與各項得分。</p>
-  </section>
+  <div class="mkt-bar" id="markets">
+    <span class="mkt-lab">商品</span>
+    <div class="seg-ctl mkt" id="mkt-tabs" role="group" aria-label="商品"></div>
+  </div>
 
   <section id="wave" class="block">
     <div class="block-head">
-      <h2>台指期波浪推算</h2>
+      <h2>波浪推算</h2>
       <div class="controls">
         <div class="seg-ctl" role="group" aria-label="週期" data-group="waveTf">
           <button data-v="D" aria-pressed="true">日線</button>
@@ -84,9 +48,44 @@
       </div>
     </div>
     <p class="sub" id="wave-meta">載入中</p>
-    <div class="wave-chart" id="wave-chart" role="img" aria-label="台指期 K 線與波浪標示"></div>
+    <div class="wave-chart" id="wave-chart" role="img" aria-label="K 線與波浪標示"></div>
     <div class="wave-counts" id="wave-counts"></div>
     <p class="hint">用程式找出轉折點（反轉幅度超過 ATR 的固定倍數才算），再依艾略特波浪規則檢查：第 2 浪不跌破第 1 浪起點、第 3 浪不是最短、第 4 浪不與第 1 浪重疊；符合規則的數浪方式中，以各浪比例最接近常見費氏比例、起點最明顯者為主要推算。這是機械式推算，換一種數法可能得到不同結論，僅供參考。</p>
+  </section>
+
+  <section id="strategy" class="block">
+    <div class="block-head">
+      <h2>波段逆勢布局</h2>
+      <div class="seg-ctl" role="group" aria-label="波段週期" data-group="stTf">
+        <button data-v="D" aria-pressed="true">日線波段</button>
+        <button data-v="H">60 分波段</button>
+        <button data-v="M30">30 分波段</button>
+      </div>
+    </div>
+    <p class="sub" id="st-meta">載入中</p>
+    <div class="st-trend" id="st-trend"></div>
+    <div class="st-grid">
+      <div class="st-card">
+        <div class="st-head"><h3 id="st-zone-title">回檔區間分批</h3>
+          <label class="sort">商品
+            <select id="st-prod"><option>大台</option><option selected>小台</option><option>微台</option></select>
+          </label>
+        </div>
+        <div class="st-alloc">
+          <label>可下單總口數 <input id="st-total" type="number" min="0" step="1" inputmode="numeric" placeholder="輸入口數"></label>
+          <label>分配方式
+            <select id="st-mode"><option value="even">平均分配</option><option value="pyr">金字塔（越深越多 1:2:3）</option></select>
+          </label>
+        </div>
+        <table class="st-batch"><thead><tr><th>批次</th><th class="r">價位</th><th>依據</th><th class="r">口數</th></tr></thead><tbody id="st-batches"></tbody></table>
+        <div id="st-calc"></div>
+      </div>
+      <div>
+        <div class="st-card" id="st-signal"></div>
+        <div class="st-card" id="st-abc"></div>
+      </div>
+    </div>
+    <p class="hint">規則：所選週期只數推動浪，判斷上升或下跌與目前浪位（日線另外標示大方向）。修正浪才逆勢布局：第 2 浪取第 1 浪的 0.5／0.618／0.786，第 4 浪取第 3 浪的 0.236／0.382／0.5，5 浪走完後的 ABC 取整段的 0.382／0.5／0.618，各為一批。價格進入區間後，等 5 分 K 推算轉為布局方向再進該批。停損用波浪規則的失效價。這是程式依規則算出的參考價位，不是投資建議。</p>
   </section>
 
   <section id="chips" class="block">
@@ -127,139 +126,35 @@
     <p class="hint">資料來源：期交所三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日交易行情。多空淨額 = (買 Call − 賣 Call) − (買 Put − 賣 Put)。判讀由固定規則產生：前五、前十大與特法的淨額變化、三大法人變化、月選合成淨額變化與期貨漲跌各給分加總，僅供參考。</p>
   </section>
 
-  <section id="strategy" class="block">
-    <div class="block-head">
-      <h2>波段逆勢布局</h2>
-      <div class="seg-ctl" role="group" aria-label="波段週期" data-group="stTf">
-        <button data-v="D" aria-pressed="true">日線波段</button>
-        <button data-v="H">60 分波段</button>
-        <button data-v="M30">30 分波段</button>
-      </div>
-    </div>
-    <p class="sub" id="st-meta">載入中</p>
-    <div class="st-trend" id="st-trend"></div>
-    <div class="st-grid">
-      <div class="st-card">
-        <div class="st-head"><h3 id="st-zone-title">回檔區間分批</h3>
-          <label class="sort">商品
-            <select id="st-prod"><option>大台</option><option selected>小台</option><option>微台</option></select>
-          </label>
-        </div>
-        <div class="st-alloc">
-          <label>可下單總口數 <input id="st-total" type="number" min="0" step="1" inputmode="numeric" placeholder="輸入口數"></label>
-          <label>分配方式
-            <select id="st-mode"><option value="even">平均分配</option><option value="pyr">金字塔（越深越多 1:2:3）</option></select>
-          </label>
-        </div>
-        <table class="st-batch"><thead><tr><th>批次</th><th class="r">價位</th><th>依據</th><th class="r">口數</th></tr></thead><tbody id="st-batches"></tbody></table>
-        <div id="st-calc"></div>
-      </div>
-      <div>
-        <div class="st-card" id="st-signal"></div>
-        <div class="st-card" id="st-abc"></div>
-      </div>
-    </div>
-    <p class="hint">規則：所選週期只數推動浪，判斷上升或下跌與目前浪位（日線另外標示大方向）。修正浪才逆勢布局：第 2 浪取第 1 浪的 0.5／0.618／0.786，第 4 浪取第 3 浪的 0.236／0.382／0.5，5 浪走完後的 ABC 取整段的 0.382／0.5／0.618，各為一批。價格進入區間後，等 5 分 K 推算轉為布局方向再進該批。停損用波浪規則的失效價。這是程式依規則算出的參考價位，不是投資建議。</p>
-  </section>
 
-  <section id="history" class="block">
-    <div class="block-head">
-      <h2>歷史清單</h2>
-      <div class="controls">
-        <label class="sort">日期 <select id="hist-date"></select></label>
-        <div class="seg-ctl" role="group" aria-label="市場" data-group="histMarket">
-          <button data-v="twse" aria-pressed="true">上市</button>
-          <button data-v="tpex">上櫃</button>
-        </div>
-      </div>
-    </div>
-    <p class="sub" id="hist-summary"></p>
-    <div class="table-wrap"><table class="grid" id="hist-table"></table></div>
-  </section>
 
-  <section id="daytrade" class="block">
-    <div class="block-head">
-      <h2>當沖熱門標的</h2>
-      <div class="seg-ctl" role="group" aria-label="方向" data-group="dtSide">
-        <button data-v="long" aria-pressed="true">做多 20 檔</button>
-        <button data-v="short">做空 20 檔</button>
-      </div>
-    </div>
-    <p class="sub">上市、上櫃合併排名。</p>
-    <div class="table-wrap"><table class="grid" id="dt-table"></table></div>
-    <p class="hint">「隔日沖賣壓」是用公開資料推估：當天漲 5% 以上、成交量是前 4 日均量 2 倍以上、收在當日高點附近，而且三大法人沒有買超。本站沒有使用券商分點資料。當沖風險很高，名單只是依規則篩選的結果。</p>
-  </section>
-
-  <section id="volume" class="block">
-    <div class="block-head">
-      <h2 id="vol-title">上市成交量前 20 名</h2>
-      <div class="seg-ctl" role="group" aria-label="市場" data-group="volMarket">
-        <button data-v="twse" aria-pressed="true">上市</button>
-        <button data-v="tpex">上櫃</button>
-      </div>
-    </div>
-    <p class="sub">依當日成交張數排名（1 張 = 1,000 股），只計普通股，不含 ETF、權證。</p>
-    <div class="table-wrap"><table class="grid" id="vol-table"></table></div>
-  </section>
-
-  <section id="turnover" class="block">
-    <div class="block-head">
-      <h2 id="turn-title">上市週轉率前 20 名</h2>
-      <div class="seg-ctl" role="group" aria-label="市場" data-group="turnMarket">
-        <button data-v="twse" aria-pressed="true">上市</button>
-        <button data-v="tpex">上櫃</button>
-      </div>
-    </div>
-    <p class="sub">週轉率 = 當日成交股數 ÷ 發行股數。數字越高，當天換手越熱絡，股價波動通常也越大。</p>
-    <div class="table-wrap"><table class="grid" id="turn-table"></table></div>
-  </section>
-
-  <section id="method" class="block prose">
-    <h2>評分方式</h2>
-    <p>滿分 100 分，由五個項目組成。除了連續買超天數，其餘項目都換算成「在當天候選股中的百分位」再乘上權重，所以分數代表的是相對強弱，不是絕對門檻。</p>
-    <table class="grid method">
-      <thead><tr><th>項目</th><th>怎麼算</th><th class="r">滿分</th></tr></thead>
-      <tbody>
-        <tr><td><i class="dot s1"></i>法人當日買超</td><td>三大法人當日買超股數 ÷ 5 日平均成交股數</td><td class="r num">25</td></tr>
-        <tr><td><i class="dot s2"></i>法人 5 日累計</td><td>近 5 個交易日三大法人買超合計 ÷ 5 日均量；累計為賣超得 0 分</td><td class="r num">25</td></tr>
-        <tr><td><i class="dot s3"></i>連續買超天數</td><td>外資或投信連續買超天數取較多者，每天 2 分，5 天以上滿分</td><td class="r num">10</td></tr>
-        <tr><td><i class="dot s4"></i>千張大戶週增減</td><td>持股 1,000 張以上股東的持股比例，與前一週集保資料相比；減少得 0 分</td><td class="r num">25</td></tr>
-        <tr><td><i class="dot s5"></i>融資餘額減少</td><td>融資餘額較前一日的減少幅度；增加得 0 分</td><td class="r num">15</td></tr>
-      </tbody>
-    </table>
-    <p>上市、上櫃分開計分排名，各取前 20 名。入選條件：普通股、5 日均量 1,000 張以上、收盤價 10 元以上、當日三大法人為買超。千張大戶持股達 99% 以上的股票（多半是公開收購或合併完成，市場上幾乎沒有流通籌碼）不列入。</p>
-    <p>當沖熱門的做多分數由漲幅、量增倍數、週轉率、收盤位置與法人買超組成；做空分數則看跌幅、量增、週轉率、是否收在低點與法人賣超，符合「隔日沖賣壓」條件的股票也列入做空名單。</p>
-    <p id="tdcc-note" class="sub"></p>
-  </section>
 
   <section id="sources" class="block prose">
     <h2>資料來源</h2>
     <ul>
-      <li>臺灣證券交易所：每日收盤行情、三大法人買賣超、融資融券餘額、當日沖銷交易</li>
-      <li>證券櫃檯買賣中心：上櫃股票行情、三大法人買賣明細、融資融券餘額、當日沖銷交易</li>
-      <li>臺灣集中保管結算所：集保戶股權分散表（每週更新）</li>
-      <li>證交所國際證券辨識號碼一覽表：產業別與普通股判定</li>
+      <li>臺灣期貨交易所：台指期每日行情與逐筆成交（日線、5／30／60 分 K）、三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日行情</li>
+      <li>證券櫃檯買賣中心：櫃買指數日線</li>
+      <li>Yahoo Finance：加權指數、小娜（MNQ）、1oz 黃金（1OZ）、布蘭特原油（BZ）的日線與盤中 K 線</li>
     </ul>
-    <p class="sub" id="gen-note"></p>
+    <p class="sub">台指期日線為全日盤（前一晚夜盤＋當天日盤）。櫃買指數官方沒有提供盤中 K 線，只做日線。資料每個交易日晚間與隔天清晨自動更新。</p>
   </section>
 
   <section id="disclaimer" class="block prose">
     <h2>免責聲明</h2>
     <ol>
-      <li>本站與製作者不是依《證券投資信託及顧問法》核准的證券投資顧問事業，不收取任何費用，內容也不是針對個人財務狀況提供的意見。</li>
-      <li>站內「推薦」、「做多」、「做空」等名單，都是程式依公開資料與固定規則自動篩選、排序的結果，只供研究與學習，不是買賣任何有價證券的建議、招攬或保證。</li>
-      <li>資料取自證交所、櫃買中心、集保結算所的公開資訊，經程式計算整理。本站盡力維持正確，但不保證資料正確、完整或即時；原始機構可能事後更正，請以官方公告為準。「隔日沖賣壓」是依公開資料推估，不是券商分點的實際交易紀錄。</li>
-      <li>投資有風險，可能損失全部本金；當沖與融資融券等信用交易的損失可能超過本金。過去表現不代表未來績效，請依自身財務狀況審慎評估，必要時諮詢合格專業人士，並自行承擔投資結果。</li>
+      <li>本站與製作者不是依法核准的證券投資顧問或期貨顧問事業，不收取任何費用，內容也不是針對個人財務狀況提供的意見。</li>
+      <li>站內的波浪推算、籌碼判讀、回檔區間與分批價位，都是程式依公開資料與固定規則自動計算的結果，只供研究與學習，不是買賣任何商品的建議、招攬或保證。</li>
+      <li>資料取自期交所、櫃買中心與 Yahoo Finance，本站盡力維持正確，但不保證資料正確、完整或即時，請以官方公告與券商報價為準。</li>
+      <li>期貨與選擇權為高槓桿商品，損失可能超過原始保證金。過去表現不代表未來績效，請依自身財務狀況審慎評估，並自行承擔交易結果。</li>
       <li>任何人因使用本站內容、資料錯誤或遺漏、網站中斷或延遲而產生的直接或間接損失，本站與製作者在法律允許範圍內不負賠償責任。</li>
-      <li>原始資料的權利屬各資料提供機構。本聲明可能隨時修改，以中華民國法律為準據法。</li>
     </ol>
   </section>
 </main>
 
 <footer class="foot">
-  <p>籌碼選股日報。資料於每個交易日晚間自動更新。</p>
+  <p>波浪籌碼日報。資料於每個交易日晚間與隔天清晨自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251300" defer></script>
+<script src="assets/app.js?v=202610251410" defer></script>
 </body>
 </html>

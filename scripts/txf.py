@@ -306,6 +306,17 @@ def zigzag(bars, mult):
     return piv, (ext, bars[ext][2] if trend == 1 else bars[ext][3], "H" if trend == 1 else "L")
 
 
+NDP = 0   # 價格小數位數，analyze() 依價格大小設定
+
+
+def rp(x):
+    return round(x, NDP) if NDP else round(x)
+
+
+def fp(x):
+    return f"{x:,.{NDP}f}"
+
+
 def closeness(r, ideals, tol):
     return max(math.exp(-((r - t) / tol) ** 2) for t in ideals)
 
@@ -459,9 +470,9 @@ def project(c, piv, last_close):
     targets = []
     for name, v in T:
         reached = (v - cur_n) * nd <= 0
-        targets.append({"name": name, "price": round(v * d), "reached": reached})
+        targets.append({"name": name, "price": rp(v * d), "reached": reached})
     targets.sort(key=lambda t: t["price"] * d * nd)
-    return targets, {"price": round(inv * d), "note": note}
+    return targets, {"price": rp(inv * d), "note": note}
 
 
 def labels_for(c):
@@ -479,18 +490,18 @@ def describe(c, piv, times, targets, inv, tf_name):
     if c["kind"] == "impulse":
         pattern = f"{d}推動浪"
         now = f"第 {IMP_NEXT[k]} 浪" if k < 5 else "A 浪修正"
-        head = (f"自 {start_t} 的 {start_p:,.0f} 起算為{pattern}，"
-                f"第 {lab[-1]} 浪在 {end_t} 的 {end_p:,.0f} 結束，目前推算在{' ' if now[0].isascii() else ''}{now}。")
+        head = (f"自 {start_t} 的 {fp(start_p)} 起算為{pattern}，"
+                f"第 {lab[-1]} 浪在 {end_t} 的 {fp(end_p)} 結束，目前推算在{' ' if now[0].isascii() else ''}{now}。")
     else:
         pattern = "ABC 反彈" if c["d"] == 1 else "ABC 回檔"
         now = "C 浪" if k == 2 else "新一波第 1 浪"
-        head = (f"自 {start_t} 的 {start_p:,.0f} 起為 {pattern}，"
-                f"{lab[-1]} 浪在 {end_t} 的 {end_p:,.0f} 結束，目前推算在{' ' if now[0].isascii() else ''}{now}。")
+        head = (f"自 {start_t} 的 {fp(start_p)} 起為 {pattern}，"
+                f"{lab[-1]} 浪在 {end_t} 的 {fp(end_p)} 結束，目前推算在{' ' if now[0].isascii() else ''}{now}。")
     nxt = [t for t in targets if not t["reached"]]
     tail = ""
     if nxt:
-        tail = f"下一個參考價位 {nxt[0]['price']:,}（{nxt[0]['name']}）。"
-    tail += f"若{inv['note']} {inv['price']:,}，此推算失效。"
+        tail = f"下一個參考價位 {fp(nxt[0]['price'])}（{nxt[0]['name']}）。"
+    tail += f"若{inv['note']} {fp(inv['price'])}，此推算失效。"
     return pattern, now, head + tail
 
 
@@ -500,11 +511,13 @@ TF_SHOW = {"D": 160, "H": 200, "M30": 220, "M5": 240}
 
 
 def analyze(bars_map: dict, tf: str):
+    global NDP
     keys = sorted(bars_map)
     bars = [[k] + bars_map[k][:4] for k in keys]
     if len(bars) < 60:
         return None
     last_close = bars[-1][4]
+    NDP = 0 if abs(last_close) >= 1000 else 2
     fmt = (lambda k: k.replace("-", "/")) if tf == "D" else (lambda k: k[5:].replace("-", "/"))
     times = [fmt(b[0]) for b in bars]
     # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論
@@ -528,7 +541,7 @@ def analyze(bars_map: dict, tf: str):
         counts.append({
             "pattern": pattern, "now": now, "text": text,
             "confidence": round(min(score, 1) * 100), "threshold": f"{mult:g} 倍 ATR(14)",
-            "points": [[bars[piv[c["s"] + j][0]][0], round(piv[c["s"] + j][1]), lab[j]]
+            "points": [[bars[piv[c["s"] + j][0]][0], rp(piv[c["s"] + j][1]), lab[j]]
                        for j in range(c["k"] + 1)],
             "targets": targets, "invalid": inv,
         })
@@ -555,9 +568,9 @@ def analyze(bars_map: dict, tf: str):
         "partial": bool(tf == "D" and len(bars_map[keys[-1]]) > 6),
         "last": {"t": bars[-1][0], "c": last_close},
         "threshold": f"{mult:g} 倍 ATR(14)",
-        "bars": [[b[0]] + [round(v) for v in b[1:5]] for b in bars[start_i:]],
-        "pivots": [[bars[i][0], round(p), t] for i, p, t in piv if bars[i][0] >= first]
-                  + ([[bars[cur[0]][0], round(cur[1]), "cur"]] if cur else []),
+        "bars": [[b[0]] + [rp(v) for v in b[1:5]] for b in bars[start_i:]],
+        "pivots": [[bars[i][0], rp(p), t] for i, p, t in piv if bars[i][0] >= first]
+                  + ([[bars[cur[0]][0], rp(cur[1]), "cur"]] if cur else []),
         "counts": counts,
     }
 

@@ -431,12 +431,15 @@ def run(root: Path, fetch=True):
     st = _load(store / "strikes.json", {})
     fut_daily = _load(root / "data" / "store" / "txf" / "daily_full.json", {}) or \
         _load(root / "data" / "store" / "txf" / "daily.json", {})
+    # 加權指數收盤（期現價差用）：來自 markets.py 存的日線
     index_by_date = {}
-    for p in sorted((root / "data" / "store" / "daily").glob("*.json"))[-HIST - 5:]:
-        dd = _load(p)
-        ix = (dd.get("index") or {}).get("twse")
-        if ix:
-            index_by_date[dd["date"]] = ix
+    tw = _load(root / "data" / "store" / "markets" / "TWII_D.json", {})
+    keys = sorted(tw)
+    for i, k in enumerate(keys):
+        c = tw[k][3]
+        chg = c - tw[keys[i - 1]][3] if i > 0 else None
+        index_by_date[k] = {"close": round(c, 2), "chg": round(chg, 2) if chg is not None else None,
+                            "pct": round(chg / (c - chg) * 100, 2) if chg is not None else None}
     dates = sorted(d for d in large if d in inst)
     strikes = st.get("data") if dates and st.get("date") == dates[-1] else None
     # json 的 key 是字串，履約價轉回數字

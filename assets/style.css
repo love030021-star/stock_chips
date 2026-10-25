@@ -333,3 +333,13 @@ select {
 .st-alloc { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 4px 0 12px; font-size: 14px; color: var(--muted); }
 .st-alloc label { display: inline-flex; align-items: center; gap: 6px; }
 .st-alloc input { width: 96px; font: 600 15px var(--num); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+
+/* ---------- 商品切換 ---------- */
+.mkt-bar {
+  position: sticky; top: 49px; z-index: 9; display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line); overflow-x: auto;
+}
+.mkt-lab { font-size: 14px; color: var(--muted); flex: none; }
+.seg-ctl.mkt { flex: none; }
+.seg-ctl button:disabled { opacity: .35; cursor: not-allowed; }
