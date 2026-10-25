@@ -2,9 +2,9 @@
 
 資料：
   日線  期交所「期貨每日交易行情」，一般交易時段（日盤），每天取成交量最大的月合約。
-  60 分 期交所「前 30 個交易日期貨每筆成交資料」自行彙整，含日盤與夜盤。
+  分 K  期交所「前 30 個交易日期貨每筆成交資料」自行彙整成 5、30、60 分，含日盤與夜盤。
 輸出：
-  data/store/txf/daily.json、h60.json   K 棒原始資料
+  data/store/txf/daily.json、m5.json、m30.json、h60.json   K 棒原始資料
   data/wave.json                          網站使用的推算結果
 
   python scripts/txf.py            抓資料並重算
@@ -120,7 +120,11 @@ def update_daily(store: Path, today: date):
     log(f"日線 {len(data)} 天，最新 {keys[-1] if keys else '無'}")
 
 
-# ======================= 60 分 K =======================
+# ======================= 分 K（5、30、60 分） =======================
+
+# 週期代號 -> (分鐘數, 檔名, 保留根數)
+INTRADAY = {"M5": (5, "m5.json", 7000), "M30": (30, "m30.json", 3000), "H": (60, "h60.json", 2400)}
+
 
 def list_tick_files() -> list[str]:
     html = _req("GET", f"{BASE}/cht/3/futPrevious30DaysSalesData").text
@@ -128,23 +132,24 @@ def list_tick_files() -> list[str]:
     return names
 
 
-def bucket(d: str, t: str) -> str | None:
-    """成交日期、時間 -> 60 分 K 的開始時間 'YYYY-MM-DD HH:MM'。日盤以 08:45 對齊，夜盤以整點對齊。"""
+def bucket(d: str, t: str, iv: int = 60) -> str | None:
+    """成交日期、時間 -> K 棒開始時間 'YYYY-MM-DD HH:MM'。日盤自 08:45 起算，夜盤自 15:00 起算。
+    收盤那一筆（13:45、05:00）併入最後一根。"""
     t = t.zfill(6)
     m = int(t[:2]) * 60 + int(t[2:4])
     if 525 <= m <= 825:                       # 08:45–13:45
-        start = 525 + 60 * min((m - 525) // 60, 4)
+        start = 525 + iv * min((m - 525) // iv, (300 - 1) // iv)
     elif m >= 900:                            # 15:00–23:59
-        start = 60 * (m // 60)
+        start = 900 + iv * ((m - 900) // iv)
     elif m <= 300:                            # 00:00–05:00
-        start = 60 * min(m // 60, 4)
+        start = iv * min(m // iv, (300 - 1) // iv)
     else:
         return None
     return f"{d[:4]}-{d[4:6]}-{d[6:8]} {start // 60:02d}:{start % 60:02d}"
 
 
-def parse_ticks(raw: bytes) -> dict:
-    """每筆成交 CSV -> {bar_key: [o,h,l,c,v]}，只用該檔成交量最大的 TX 月合約。"""
+def parse_ticks(raw: bytes, ivs=(5, 30, 60)) -> dict:
+    """每筆成交 CSV -> {分鐘數: {bar_key: [o,h,l,c,v]}}，只用該檔成交量最大的 TX 月合約。"""
     rows, vol = [], {}
     for line in raw.split(b"\n"):
         if b",TX " not in line[:20]:
@@ -161,31 +166,32 @@ def parse_ticks(raw: bytes) -> dict:
             continue
         rows.append((mon, c[0].strip().decode(), c[3].strip().decode(), p, q))
         vol[mon] = vol.get(mon, 0) + q
+    out = {iv: {} for iv in ivs}
     if not rows:
-        return {}
+        return out
     main = max(vol, key=vol.get)
-    bars = {}
     for mon, d, t, p, q in rows:
         if mon != main:
             continue
-        k = bucket(d, t)
-        if not k:
-            continue
-        b = bars.get(k)
-        if b is None:
-            bars[k] = [p, p, p, p, q]
-        else:
-            b[1] = max(b[1], p)
-            b[2] = min(b[2], p)
-            b[3] = p
-            b[4] += q
-    return bars
+        for iv in ivs:
+            k = bucket(d, t, iv)
+            if not k:
+                continue
+            bars = out[iv]
+            b = bars.get(k)
+            if b is None:
+                bars[k] = [p, p, p, p, q]
+            else:
+                b[1] = max(b[1], p)
+                b[2] = min(b[2], p)
+                b[3] = p
+                b[4] += q
+    return out
 
 
-def update_h60(store: Path, today: date):
-    path = store / "h60.json"
-    data = _load(path, {})
-    done = set(_load(store / "h60_files.json", []))
+def update_intraday(store: Path, today: date):
+    data = {tf: _load(store / fn, {}) for tf, (_, fn, _) in INTRADAY.items()}
+    done = set(_load(store / "tick_files.json", []))
     names = list_tick_files()
     if not names:
         raise RuntimeError("找不到每筆成交資料清單")
@@ -200,16 +206,18 @@ def update_h60(store: Path, today: date):
         except Exception as e:  # noqa: BLE001
             log("  ", n, "下載失敗：", e)
             continue
-        bars = parse_ticks(raw)
-        data.update(bars)
+        res = parse_ticks(raw)
+        for tf, (iv, _, _) in INTRADAY.items():
+            data[tf].update(res[iv])
         if n < today_s:
             done.add(n)
-        log(f"  {n}：{len(bars)} 根")
-    keys = sorted(data)[-H60_KEEP:]
-    data = {k: data[k] for k in keys}
-    _dump(path, data)
-    _dump(store / "h60_files.json", sorted(done)[-60:])
-    log(f"60 分 K {len(data)} 根，最新 {keys[-1] if keys else '無'}")
+        log(f"  {n}：60 分 {len(res[60])} 根")
+    for tf, (iv, fn, keep) in INTRADAY.items():
+        keys = sorted(data[tf])[-keep:]
+        _dump(store / fn, {k: data[tf][k] for k in keys})
+        log(f"{iv} 分 K {len(keys)} 根，最新 {keys[-1] if keys else '無'}")
+    _dump(store / "tick_files.json", sorted(done)[-60:])
+    (store / "h60_files.json").unlink(missing_ok=True)
 
 
 # ======================= 波浪推算 =======================
@@ -451,7 +459,9 @@ def describe(c, piv, times, targets, inv, tf_name):
     return pattern, now, head + tail
 
 
-MULTS = {"D": (2.0, 2.5, 3.0), "H": (2.5, 3.5, 4.5)}
+MULTS = {"D": (2.0, 2.5, 3.0), "H": (2.5, 3.5, 4.5), "M30": (2.5, 3.5, 4.5), "M5": (3.0, 4.0, 5.5)}
+TF_NAME = {"D": "日線", "H": "60 分 K", "M30": "30 分 K", "M5": "5 分 K"}
+TF_SHOW = {"D": 160, "H": 200, "M30": 220, "M5": 240}
 
 
 def analyze(bars_map: dict, tf: str):
@@ -496,7 +506,7 @@ def analyze(bars_map: dict, tf: str):
         piv, cur = zigzag(bars, mult)
     else:
         mult, piv, cur = prim
-    show = 160 if tf == "D" else 200
+    show = TF_SHOW[tf]
     start_i = max(0, len(bars) - show)
     if counts:
         first_pt = min(p[0] for c in counts for p in c["points"])
@@ -505,7 +515,7 @@ def analyze(bars_map: dict, tf: str):
     first = bars[start_i][0]
     return {
         "tf": tf,
-        "name": "日線" if tf == "D" else "60 分 K",
+        "name": TF_NAME[tf],
         "session": "日盤（08:45–13:45）" if tf == "D" else "日盤與夜盤",
         "last": {"t": bars[-1][0], "c": last_close},
         "threshold": f"{mult:g} 倍 ATR(14)",
@@ -520,13 +530,13 @@ def run(root: Path, fetch=True):
     store = root / "data" / "store" / "txf"
     today = datetime.now(TPE).date()
     if fetch:
-        for fn in (update_daily, update_h60):
+        for fn in (update_daily, update_intraday):
             try:
                 fn(store, today)
             except Exception as e:  # noqa: BLE001
                 log(fn.__name__, "失敗：", e)
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "contract": "臺股期貨（TX）近月"}
-    for tf, fn in (("D", "daily.json"), ("H", "h60.json")):
+    for tf, fn in (("D", "daily.json"), ("H", "h60.json"), ("M30", "m30.json"), ("M5", "m5.json")):
         res = analyze(_load(store / fn, {}), tf)
         if res:
             out[tf] = res

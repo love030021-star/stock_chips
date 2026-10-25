@@ -262,8 +262,3 @@ select {
 .wave-chart .note-t { fill: var(--ink); }
 .wave-chart .note-g { fill: var(--gold); font-weight: 600; }
 .wave-chart .note-m { fill: var(--muted); }
-.btn {
-  font: 500 14px var(--sans); color: var(--ink); background: var(--panel);
-  border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer;
-}
-.btn:hover { border-color: var(--muted); }

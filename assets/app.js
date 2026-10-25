@@ -67,36 +67,6 @@
     cards.innerHTML = countCard(p, "主要推算", "") + (a ? countCard(a, "替代推算", "alt") : "");
   }
 
-  // 下載圖片：把 SVG 的計算後樣式寫進去，再畫到 canvas 輸出 PNG
-  async function downloadWave() {
-    const svg = $("#wave-chart svg");
-    if (!svg) return;
-    const clone = svg.cloneNode(true);
-    const props = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linejoin", "opacity", "paint-order", "font-family", "font-size", "font-weight", "text-anchor", "dominant-baseline"];
-    const src = svg.querySelectorAll("*"), dst = clone.querySelectorAll("*");
-    src.forEach((el, i) => {
-      const cs = getComputedStyle(el);
-      dst[i].setAttribute("style", props.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(";"));
-    });
-    const vb = svg.viewBox.baseVal, scale = 2;
-    clone.setAttribute("width", vb.width); clone.setAttribute("height", vb.height);
-    const bg = getComputedStyle($(".wave-chart")).backgroundColor;
-    clone.insertAdjacentHTML("afterbegin", `<rect x="0" y="0" width="${vb.width}" height="${vb.height}" fill="${bg}"/>`);
-    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = vb.width * scale; c.height = vb.height * scale;
-      const ctx = c.getContext("2d"); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      const a = document.createElement("a");
-      a.download = `台指期波浪_${state.waveTf === "D" ? "日線" : "60分"}_${(W[state.waveTf].last.t || "").replace(/[ :]/g, "-")}.png`;
-      a.href = c.toDataURL("image/png"); a.click();
-    };
-    img.src = url;
-  }
-  $("#wave-dl").addEventListener("click", downloadWave);
-
   let rsz;
   window.addEventListener("resize", () => {
     clearTimeout(rsz);
@@ -205,8 +175,10 @@
     }
     let lastLab = "", lx = -999;
     bars.forEach((b, i) => {
-      const lab = R.tf === "D" ? b[0].slice(0, 7).replace("-", "/") : b[0].slice(5, 10).replace("-", "/");
-      if (lab !== lastLab && i > 2 && X(i) - lx > 70 && X(i) < xl - 20) {
+      const lab = R.tf === "D" ? b[0].slice(0, 7).replace("-", "/")
+        : R.tf === "M5" ? b[0].slice(5, 10).replace("-", "/") + " " + b[0].slice(11, 13) + "時"
+        : b[0].slice(5, 10).replace("-", "/");
+      if (lab !== lastLab && i > 2 && X(i) - lx > (R.tf === "M5" ? 90 : 70) && X(i) < xl - 20) {
         s += `<text class="ax" x="${X(i)}" y="${H_ - 8}" text-anchor="middle">${lab}</text>`; lx = X(i);
       }
       lastLab = lab;
