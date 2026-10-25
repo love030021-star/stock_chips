@@ -59,7 +59,7 @@
       box.innerHTML = ""; cards.innerHTML = "";
       return;
     }
-    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}。轉折門檻 ${R.threshold}。`;
+    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}。圖上虛線為 ${R.threshold} 的轉折。`;
     box.innerHTML = waveSvg(R);
     box.dataset.w = box.clientWidth;
     const [p, a] = R.counts;
@@ -77,7 +77,7 @@
     const rows = c.targets.map((t) => `<tr class="${t.reached ? "done" : ""}"><td>${esc(t.name)}${t.reached ? "（已到）" : ""}</td><td class="r">${fmt(t.price)}</td></tr>`).join("");
     return `<div class="wave-card ${k}">
       <h3>${title}：${esc(c.now)}</h3>
-      <div class="kind">${esc(c.pattern)} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
+      <div class="kind">${esc(c.pattern)}，轉折門檻 ${esc(c.threshold || "")} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
       <p>${esc(c.text)}</p>
       <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fmt(c.invalid.price)}</td></tr></tbody></table>
     </div>`;

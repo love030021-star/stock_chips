@@ -398,7 +398,7 @@ def project(c, piv, last_close):
             inv, note = x[4], ("跌破第 4 浪低點" if up else "漲破第 4 浪高點")
         else:
             tot = x[5] - x[0]
-            T = [(f"第 1–5 浪的 {r:g}", x[5] - tot * r) for r in (0.236, 0.382, 0.5, 0.618)]
+            T = [(f"第 1–5 浪的 {r:g}", x[5] - tot * r) for r in (0.236, 0.382, 0.5, 0.618, 0.786)]
             inv, note = x[5], ("突破第 5 浪高點" if up else "跌破第 5 浪低點")
     else:
         A = x[1] - x[0]
@@ -407,7 +407,7 @@ def project(c, piv, last_close):
             inv, note = x[0], ("跌破 A 浪起點" if up else "漲破 A 浪起點")
         else:
             span = x[3] - x[0]
-            T = [(f"A–C 段的 {r:g}", x[3] - span * r) for r in (0.382, 0.618, 1.0)]
+            T = [(f"A–C 段的 {r:g}", x[3] - span * r) for r in (0.382, 0.618, 1.0, 1.618)]
             inv, note = x[3], ("突破 C 浪高點" if up else "跌破 C 浪低點")
     # 方向：進行中波段與前一波相反
     lastdir = 1 if x[-1] > x[-2] else -1
@@ -451,31 +451,51 @@ def describe(c, piv, times, targets, inv, tf_name):
     return pattern, now, head + tail
 
 
+MULTS = {"D": (2.0, 2.5, 3.0), "H": (2.5, 3.5, 4.5)}
+
+
 def analyze(bars_map: dict, tf: str):
     keys = sorted(bars_map)
     bars = [[k] + bars_map[k][:4] for k in keys]
     if len(bars) < 60:
         return None
-    mult = 3.0 if tf == "D" else 3.5
-    piv, cur = zigzag(bars, mult)
-    if len(piv) < 4:
-        return None
     last_close = bars[-1][4]
     fmt = (lambda k: k.replace("-", "/")) if tf == "D" else (lambda k: k[5:].replace("-", "/"))
     times = [fmt(b[0]) for b in bars]
-    cands = candidates(piv, cur)
-    counts = []
-    for c in cands[:2]:
+    # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論
+    pool = []
+    for mult in MULTS[tf]:
+        piv, cur = zigzag(bars, mult)
+        if len(piv) < 4:
+            continue
+        for c in candidates(piv, cur):
+            pool.append((c["score"], mult, piv, cur, c))
+    pool.sort(key=lambda t: -t[0])
+    counts, seen, prim = [], set(), None
+    for score, mult, piv, cur, c in pool:
         targets, inv = project(c, piv, last_close)
         pattern, now, text = describe(c, piv, times, targets, inv, tf)
+        key = (pattern, now)
+        if key in seen:
+            continue
+        seen.add(key)
         lab = labels_for(c)
         counts.append({
             "pattern": pattern, "now": now, "text": text,
-            "confidence": round(min(c["score"], 1) * 100),
+            "confidence": round(min(score, 1) * 100), "threshold": f"{mult:g} 倍 ATR(14)",
             "points": [[bars[piv[c["s"] + j][0]][0], round(piv[c["s"] + j][1]), lab[j]]
                        for j in range(c["k"] + 1)],
             "targets": targets, "invalid": inv,
         })
+        if prim is None:
+            prim = (mult, piv, cur)
+        if len(counts) == 2:
+            break
+    if prim is None:
+        mult = MULTS[tf][-1]
+        piv, cur = zigzag(bars, mult)
+    else:
+        mult, piv, cur = prim
     show = 160 if tf == "D" else 200
     start_i = max(0, len(bars) - show)
     if counts:
