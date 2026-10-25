@@ -429,7 +429,8 @@ def run(root: Path, fetch=True):
             log("抓取失敗：", e)
     large, inst = _load(store / "large.json", {}), _load(store / "inst.json", {})
     st = _load(store / "strikes.json", {})
-    fut_daily = _load(root / "data" / "store" / "txf" / "daily.json", {})
+    fut_daily = _load(root / "data" / "store" / "txf" / "daily_full.json", {}) or \
+        _load(root / "data" / "store" / "txf" / "daily.json", {})
     index_by_date = {}
     for p in sorted((root / "data" / "store" / "daily").glob("*.json"))[-HIST - 5:]:
         dd = _load(p)

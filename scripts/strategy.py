@@ -233,14 +233,14 @@ def entry_signal(W, d, inside):
             "invalid": c["invalid"]["price"], "t": R["last"]["t"], "last": R["last"]["c"]}
 
 
-TF_FILE = {"D": "daily.json", "H": "h60.json", "M30": "m30.json"}
+TF_FILE = {"D": None, "H": "h60.json", "M30": "m30.json"}
 TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分"}
 
 
 def run(root: Path):
     store = root / "data" / "store" / "txf"
     W = _load(root / "data" / "wave.json", {})
-    daily = _load(store / "daily.json", {})
+    daily = txf.daily_with_night(store)
     if len(daily) < 60:
         print("[strategy] 日線資料不足，略過")
         return
@@ -249,7 +249,7 @@ def run(root: Path):
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "pt": PT, "plans": {}}
     major = None
     for tf in ("D", "H", "M30"):
-        bars = _load(store / TF_FILE[tf], {})
+        bars = daily if tf == "D" else _load(store / TF_FILE[tf], {})
         if len(bars) < 60:
             continue
         T = daily_trend(bars, tf)
@@ -258,6 +258,7 @@ def run(root: Path):
         P = plan_from(dict(T, last=last))
         P["tf"], P["tf_label"] = tf, TF_LABEL[tf]
         P["data_t"], P["data_close"] = T["last_t"], T["last"]
+        P["partial"] = bool(tf == "D" and len(bars[max(bars)]) > 6)
         if tf == "D":
             major = P
         elif major and P["dir"] and major["dir"]:

@@ -72,7 +72,7 @@
     const P = S.plans && (S.plans[state.stTf] || S.plans.D);
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
-    $("#st-meta").textContent = `${P.tf_label}資料到 ${P.data_t.replaceAll("-", "/")}（收 ${fmt(P.data_close)}），5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fmt(S.last)}）。`;
+    $("#st-meta").textContent = `${P.tf_label}（全日盤）資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fmt(P.data_close)}），5 分 K 最新 ${(S.last_t || "").replaceAll("-", "/")}（${fmt(S.last)}）。`;
     const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fmt(p[1])}`).join(" → ");
     const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
@@ -232,7 +232,7 @@
       box.innerHTML = ""; cards.innerHTML = "";
       return;
     }
-    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}。圖上虛線為 ${R.threshold} 的轉折。`;
+    $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}${R.partial ? "（最後一根是收盤後的夜盤，交易日尚未結束）" : ""}。圖上虛線為 ${R.threshold} 的轉折。`;
     box.innerHTML = waveSvg(R);
     box.dataset.w = box.clientWidth;
     const [p, a] = R.counts;

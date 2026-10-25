@@ -1,10 +1,10 @@
 """台指期（TX 近月）資料抓取與艾略特波浪推算。
 
 資料：
-  日線  期交所「期貨每日交易行情」，一般交易時段（日盤），每天取成交量最大的月合約。
+  日線  期交所「期貨每日交易行情」，全日盤（前一晚夜盤＋當天日盤），每天取日盤成交量最大的月合約。
   分 K  期交所「前 30 個交易日期貨每筆成交資料」自行彙整成 5、30、60 分，含日盤與夜盤。
 輸出：
-  data/store/txf/daily.json、m5.json、m30.json、h60.json   K 棒原始資料
+  data/store/txf/daily_full.json、m5.json、m30.json、h60.json   K 棒原始資料
   data/wave.json                          網站使用的推算結果
 
   python scripts/txf.py            抓資料並重算
@@ -76,7 +76,9 @@ def _f(s):
 # ======================= 日線 =======================
 
 def fetch_daily_range(start: date, end: date) -> dict:
-    """回傳 {YYYY-MM-DD: [o,h,l,c,v]}，每天取一般時段成交量最大的月合約。"""
+    """回傳 {YYYY-MM-DD: [o,h,l,c,v,chg]}，全日盤（前一晚夜盤＋當天日盤）。
+    期交所標為 D 日的「盤後」是 D-1 晚上 15:00 到 D 日 05:00 的夜盤，屬於 D 日交易日。
+    每天取日盤成交量最大的月合約，開盤用夜盤開盤、收盤用日盤收盤，高低點合併。"""
     r = _req("POST", f"{BASE}/cht/3/futDataDown", data={
         "down_type": "1", "commodity_id": "TX", "commodity_id2": "",
         "queryStartDate": start.strftime("%Y/%m/%d"), "queryEndDate": end.strftime("%Y/%m/%d")})
@@ -85,22 +87,35 @@ def fetch_daily_range(start: date, end: date) -> dict:
         if "<html" in text.lower() or "alert" in text:
             return {}
         raise RuntimeError("期交所日線格式不符：" + text[:120])
-    best = {}
+    day, night = {}, {}
     for line in text.splitlines()[1:]:
         c = [x.strip() for x in line.split(",")]
-        if len(c) < 18 or c[1] != "TX" or c[17] != "一般" or not re.fullmatch(r"\d{6}", c[2]):
+        if len(c) < 18 or c[1] != "TX" or not re.fullmatch(r"\d{6}", c[2]):
             continue
         o, h, l, cl, v, ch = (_f(c[i]) for i in (3, 4, 5, 6, 9, 7))
         if None in (o, h, l, cl) or not v:
             continue
-        d = c[0].replace("/", "-")
-        if d not in best or v > best[d][4]:
-            best[d] = [o, h, l, cl, v, ch]  # ch：同一合約與前一日結算參考價的漲跌
-    return best
+        key = (c[0].replace("/", "-"), c[2])
+        if c[17] == "一般":
+            day[key] = [o, h, l, cl, v, ch]
+        elif c[17] == "盤後":
+            night[key] = [o, h, l, cl, v]
+    best = {}
+    for (d, mon), rec in day.items():
+        if d in best and best[d][1][4] >= rec[4]:
+            continue
+        best[d] = (mon, rec)
+    out = {}
+    for d, (mon, (o, h, l, cl, v, ch)) in best.items():
+        n = night.get((d, mon))
+        if n:
+            o, h, l, v = n[0], max(h, n[1]), min(l, n[2]), v + n[4]
+        out[d] = [o, h, l, cl, v, ch]
+    return out
 
 
 def update_daily(store: Path, today: date):
-    path = store / "daily.json"
+    path = store / "daily_full.json"
     data = _load(path, {})
     if len(data) < 300:
         log("補日線歷史")
@@ -218,6 +233,26 @@ def update_intraday(store: Path, today: date):
         log(f"{iv} 分 K {len(keys)} 根，最新 {keys[-1] if keys else '無'}")
     _dump(store / "tick_files.json", sorted(done)[-60:])
     (store / "h60_files.json").unlink(missing_ok=True)
+
+
+def daily_with_night(store: Path) -> dict:
+    """全日盤日 K，最後補上「已收盤日之後的夜盤」組成的一根進行中 K 棒（從 60 分 K 彙整）。"""
+    daily = _load(store / "daily_full.json", {})
+    h60 = _load(store / "h60.json", {})
+    if not daily or not h60:
+        return daily
+    last = max(daily)
+    after = sorted(k for k in h60 if k > f"{last} 13:45")
+    if not after:
+        return daily
+    bars = [h60[k] for k in after]
+    key = after[-1][:10]
+    if key <= last:
+        return daily
+    out = dict(daily)
+    out[key] = [bars[0][0], max(b[1] for b in bars), min(b[2] for b in bars), bars[-1][3],
+                sum(b[4] for b in bars), None, "night"]
+    return out
 
 
 # ======================= 波浪推算 =======================
@@ -516,7 +551,8 @@ def analyze(bars_map: dict, tf: str):
     return {
         "tf": tf,
         "name": TF_NAME[tf],
-        "session": "日盤（08:45–13:45）" if tf == "D" else "日盤與夜盤",
+        "session": "全日盤（夜盤＋日盤）" if tf == "D" else "全日盤（夜盤＋日盤）",
+        "partial": bool(tf == "D" and len(bars_map[keys[-1]]) > 6),
         "last": {"t": bars[-1][0], "c": last_close},
         "threshold": f"{mult:g} 倍 ATR(14)",
         "bars": [[b[0]] + [round(v) for v in b[1:5]] for b in bars[start_i:]],
@@ -536,8 +572,8 @@ def run(root: Path, fetch=True):
             except Exception as e:  # noqa: BLE001
                 log(fn.__name__, "失敗：", e)
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "contract": "臺股期貨（TX）近月"}
-    for tf, fn in (("D", "daily.json"), ("H", "h60.json"), ("M30", "m30.json"), ("M5", "m5.json")):
-        res = analyze(_load(store / fn, {}), tf)
+    for tf, fn in (("D", None), ("H", "h60.json"), ("M30", "m30.json"), ("M5", "m5.json")):
+        res = analyze(daily_with_night(store) if tf == "D" else _load(store / fn, {}), tf)
         if res:
             out[tf] = res
             if res["counts"]:
