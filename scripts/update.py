@@ -18,6 +18,7 @@ import sources as S  # noqa: E402
 from build import build_site  # noqa: E402
 import txf  # noqa: E402
 import chips  # noqa: E402
+import strategy  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / "data" / "store"
@@ -165,6 +166,10 @@ def main():
         chips.run(ROOT, fetch=not args.build_only)
     except Exception as e:  # noqa: BLE001
         log("選擇權籌碼分析失敗：", e)
+    try:
+        strategy.run(ROOT)
+    except Exception as e:  # noqa: BLE001
+        log("下單策略產生失敗：", e)
 
 
 if __name__ == "__main__":

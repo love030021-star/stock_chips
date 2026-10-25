@@ -291,3 +291,24 @@ select {
 .big-list li + li { margin-top: 4px; }
 .big-list .num { font-weight: 600; margin-left: 6px; }
 @media (max-width: 760px) { .evid, .chip-two { grid-template-columns: 1fr; } }
+
+/* ---------- 下單策略 ---------- */
+.st-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.st-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.st-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.st-head h3 { margin: 0; font-size: 17px; }
+.st-dir { font-weight: 700; font-size: 14px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; color: var(--muted); white-space: nowrap; }
+.st-dir.up { color: var(--up); } .st-dir.down { color: var(--down); }
+.st-act { font-weight: 600; margin: 0 0 10px; font-size: 15px; }
+.st-act.warn { color: var(--gold); }
+.st-card table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.st-card td, .st-card th { padding: 6px 0; border-top: 1px solid var(--line); text-align: left; }
+.st-card th { font-size: 13.5px; padding-top: 10px; }
+.st-card td.r { text-align: right; font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 600; }
+.st-card td.r small { font-weight: 400; color: var(--muted); font-family: var(--sans); margin-left: 4px; }
+.st-risk, .st-exit { font-size: 13.5px; color: var(--muted); margin: 10px 0 0; }
+.st-card details { margin-top: 10px; font-size: 13.5px; }
+.st-card summary { cursor: pointer; color: var(--muted); }
+.st-why { margin: 8px 0 0; padding-left: 0; list-style: none; }
+.st-why li + li { margin-top: 4px; }
+@media (max-width: 760px) { .st-grid { grid-template-columns: 1fr; } }

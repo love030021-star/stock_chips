@@ -18,6 +18,8 @@
       .then((w) => { W = w; renderWave(); });
     fetch(`data/chips.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
       .then((c) => renderChips(c));
+    fetch(`data/strategy.json?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((x) => renderStrategy(x));
     try {
       const v = Date.now().toString(36);
       [D, H] = await Promise.all([
@@ -52,6 +54,53 @@
   }
 
 
+
+
+  // ---------- 下單策略 ----------
+  function renderStrategy(S) {
+    if (!S) { $("#st-meta").textContent = "策略資料還沒產生，下一次每日更新後會出現。"; return; }
+    $("#st-meta").textContent = `依 ${S.last_t.replaceAll("-", "/")} 的台指期近月 ${fmt(S.last)} 計算，適用下一個交易時段。`;
+    const risk = (r) => `每口風險：大台 ${fmt(r["大台"])}、小台 ${fmt(r["小台"])}、微台 ${fmt(r["微台"])} 元`;
+    const why = (P) => `<ul class="st-why">${P.why.map((w) => `<li><span class="${w.dir > 0 ? "up" : w.dir < 0 ? "down" : ""}">${w.dir > 0 ? "▲" : w.dir < 0 ? "▼" : "●"}</span> ${esc(w.src)}：${esc(w.text)}</li>`).join("")}</ul>`;
+    const card = (P) => {
+      const dcls = P.dir === "做多" ? "up" : P.dir === "做空" ? "down" : "";
+      let body;
+      if (P.dir === "區間") {
+        body = `<p class="st-act">${esc(P.action)}</p><table><tbody>${P.triggers.map((t) => `
+          <tr><th colspan="2" class="${t.side === "做多" ? "up" : "down"}">${t.side}：${esc(t.note)}</th></tr>
+          <tr><td>進場</td><td class="r">${fmt(t.entry)}</td></tr>
+          <tr><td>停損</td><td class="r">${fmt(t.stop)}（${fmt(t.risk_pts)} 點）</td></tr>
+          <tr><td>目標</td><td class="r">${fmt(t.target)}</td></tr>`).join("")}</tbody></table>
+          <p class="st-risk">${risk(P.triggers[0].risk)}</p>`;
+      } else {
+        body = `<p class="st-act ${P.ok ? "" : "warn"}">${esc(P.action)}</p>
+          <table><tbody>
+          <tr><td>進場區</td><td class="r">${fmt(P.zone[0])}–${fmt(P.zone[1])}</td></tr>
+          <tr><td>停損</td><td class="r">${fmt(P.stop)}<small>（${esc(P.stop_src)}）</small></td></tr>
+          <tr><td>目標 1</td><td class="r">${fmt(P.t1)}<small>（${esc(P.t1_src)}）</small></td></tr>
+          <tr><td>目標 2</td><td class="r">${fmt(P.t2)}<small>（${esc(P.t2_src)}）</small></td></tr>
+          <tr><td>風險報酬比</td><td class="r">${P.rr.toFixed(2)}</td></tr>
+          </tbody></table>
+          <p class="st-risk">停損 ${fmt(P.risk_pts)} 點，${risk(P.risk)}</p>
+          <p class="st-exit">${esc(P.exit)}</p>`;
+      }
+      return `<div class="st-card"><div class="st-head"><h3>${P.name}</h3><span class="st-dir ${dcls}">${P.dir}</span></div>
+        ${body}<details><summary>判斷依據（ATR ${fmt(P.atr)} 點）</summary>${why(P)}</details></div>`;
+    };
+    $("#st-fut").innerHTML = card(S.intraday) + card(S.swing);
+    const O = S.options;
+    if (!O || !O.plans.length) { $("#st-opt").innerHTML = `<p class="sub">目前沒有可用的選擇權權利金資料。</p>`; return; }
+    $("#st-opt-title").textContent = `選擇權（${O.contract}，${O.exp} 到期，依波段方向）`;
+    const cpn = (c) => (c === "C" ? "Call" : "Put");
+    $("#st-opt").innerHTML = O.plans.map((p) => `<div class="st-card">
+      <div class="st-head"><h3>${esc(p.title)}</h3><span class="st-dir">${esc(p.kind)}</span></div>
+      <table><tbody>${p.legs.map((l) => `<tr><td>${l[0]} ${fmt(l[2])} ${cpn(l[1])}</td><td class="r">${fmt(l[3], 1)} 點</td></tr>`).join("")}
+      ${p.cost != null ? `<tr><td>權利金支出</td><td class="r">${fmt(p.cost)} 元</td></tr>` : ""}
+      ${p.credit != null ? `<tr><td>權利金收入</td><td class="r">${fmt(p.credit)} 元</td></tr>` : ""}
+      <tr><td>最大虧損</td><td class="r">${fmt(p.max_loss)} 元</td></tr>
+      <tr><td>損益兩平</td><td class="r">${typeof p.breakeven === "number" ? fmt(p.breakeven) : esc(p.breakeven)}</td></tr>
+      </tbody></table><p class="st-exit">${esc(p.note)}</p></div>`).join("");
+  }
 
   // ---------- 選擇權籌碼 ----------
   const sg = (n) => n == null ? "—" : `${n > 0 ? "+" : ""}${fmt(n)}`;

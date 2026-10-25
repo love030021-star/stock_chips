@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610251100">
+<link rel="stylesheet" href="assets/style.css?v=202610251130">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -20,6 +20,7 @@
   <a href="#picks">今日推薦</a>
   <a href="#wave">台指期波浪</a>
   <a href="#chips">選擇權籌碼</a>
+  <a href="#strategy">下單策略</a>
   <a href="#history">歷史清單</a>
   <a href="#daytrade">當沖熱門</a>
   <a href="#volume">成交量</a>
@@ -126,6 +127,17 @@
     <p class="hint">資料來源：期交所三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日交易行情。多空淨額 = (買 Call − 賣 Call) − (買 Put − 賣 Put)。判讀由固定規則產生：前五、前十大與特法的淨額變化、三大法人變化、月選合成淨額變化與期貨漲跌各給分加總，僅供參考。</p>
   </section>
 
+  <section id="strategy" class="block">
+    <div class="block-head">
+      <h2>下單策略</h2>
+    </div>
+    <p class="sub" id="st-meta">載入中</p>
+    <div class="st-grid" id="st-fut"></div>
+    <h3 class="h3" id="st-opt-title">選擇權</h3>
+    <div class="st-grid" id="st-opt"></div>
+    <p class="hint">由固定規則產生：方向取自各週期波浪推算（依符合度加權）與選擇權籌碼判讀；停損優先用推算失效價，太遠或太近則用 ATR 倍數；目標取方向一致的推算目標價。選擇權權利金用前一交易日結算價，實際下單請以即時報價為準。這不是投資建議，請自行評估風險。</p>
+  </section>
+
   <section id="history" class="block">
     <div class="block-head">
       <h2>歷史清單</h2>
@@ -224,6 +236,6 @@
   <p>籌碼選股日報。資料於每個交易日晚間自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610251100" defer></script>
+<script src="assets/app.js?v=202610251130" defer></script>
 </body>
 </html>

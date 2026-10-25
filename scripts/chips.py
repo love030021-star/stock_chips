@@ -61,6 +61,14 @@ def _i(s):
         return None
 
 
+def _f(s):
+    s = str(s).strip().replace(",", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def _load(p: Path, default=None):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else default
 
@@ -115,8 +123,11 @@ def parse_strikes(text: str) -> dict:
         if oi is None or k is None:
             continue
         cp = "C" if c[4] == "買權" else "P"
-        rec = out.setdefault(c[2], {"exp": c[20], "C": {}, "P": {}})
+        rec = out.setdefault(c[2], {"exp": c[20], "C": {}, "P": {}, "Cpx": {}, "Ppx": {}})
         rec[cp][k] = oi
+        px = _f(c[10]) if _f(c[10]) is not None else _f(c[8])   # 結算價，沒有就用收盤價
+        if px is not None:
+            rec[cp + "px"][k] = px
     return out
 
 
