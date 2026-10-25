@@ -47,10 +47,10 @@
     const code = (q.match(/\d{4,6}[A-Z]?/) || [""])[0];
     const hit = STOCKS.find((x) => x.code === code) || STOCKS.find((x) => x.name === q || q.includes(x.name)) || STOCKS.find((x) => x.name.includes(q));
     if (!hit) {
-      $("#stk-msg").textContent = STOCKS.length ? `查無「${q}」：目前收錄上市市值前 150 大股票，其他股票尚未收錄。` : "個股資料還在建立中，請稍後再試。";
+      $("#stk-msg").textContent = STOCKS.length ? `查無「${q}」：收錄全部上市櫃股票，查不到可能是新上市未滿 120 個交易日、已下市或代號有誤。` : "個股資料還在建立中，請稍後再試。";
       return;
     }
-    $("#stk-msg").textContent = `${hit.code} ${hit.name}：只有日線分析，資料到 ${hit.t.replaceAll("-", "/")}。`;
+    $("#stk-msg").textContent = `${hit.code} ${hit.name}（${hit.m || "上市"}）：只有日線分析，資料到 ${hit.t.replaceAll("-", "/")}。`;
     $("#stk-in").value = `${hit.code} ${hit.name}`;
     showMarket("S:" + hit.code);
     document.getElementById("wave").scrollIntoView({ behavior: "smooth", block: "start" });

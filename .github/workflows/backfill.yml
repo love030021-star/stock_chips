@@ -5,7 +5,7 @@ on:
     inputs:
       minutes:
         description: "最多補幾分鐘"
-        default: "320"
+        default: "150"
 
 permissions:
   contents: write
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 200
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -37,7 +37,7 @@ jobs:
         env:
           TZ: Asia/Taipei
         run: |
-          python scripts/stocks.py --backfill "${{ github.event.inputs.minutes || 320 }}"
+          python scripts/stocks.py --backfill "${{ github.event.inputs.minutes || 150 }}"
 
       - name: 提交資料
         run: |
