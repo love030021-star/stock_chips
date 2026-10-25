@@ -344,3 +344,12 @@ select {
 .seg-ctl.mkt { flex: none; }
 .seg-ctl button:disabled { opacity: .35; cursor: not-allowed; }
 .st-tag { font-size: 13px; font-weight: 600; color: var(--muted); border: 1px solid var(--line, currentColor); border-radius: 999px; padding: 3px 12px; white-space: nowrap; }
+.r123-svg { width: 100%; height: auto; display: block; margin: 8px 0 2px; }
+.r123-svg .z { fill: var(--up); opacity: .08; }
+.r123-svg .lv { stroke: var(--muted); stroke-width: .6; stroke-dasharray: 2 3; }
+.r123-svg .lt, .r123-svg .tt { fill: var(--muted); font-size: 11px; }
+.r123-svg .w { stroke-width: 1; } .r123-svg .w.u { stroke: var(--up); } .r123-svg .w.d { stroke: var(--down); }
+.r123-svg .b.u { fill: var(--up); } .r123-svg .b.d { fill: var(--down); }
+.r123-svg .pt { fill: #C98A0B; } .r123-svg .pl { fill: #C98A0B; font-weight: 700; font-size: 13px; }
+.r123-svg .br { stroke: #C98A0B; stroke-width: 1.2; stroke-dasharray: 5 4; }
+table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; border-top: 1px solid var(--line, #e5e5e5); }

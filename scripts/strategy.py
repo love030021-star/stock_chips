@@ -9,7 +9,7 @@
        5 浪走完後的 ABC：整段 1–5 浪的 0.382、0.5、0.618、0.786。
      推動浪進行中（第 3、5 浪）不追價，先列出預估的下一個修正區。
   3. 波浪規則的失效價不當停損，只當「停止加碼、重新數浪」的位置，並算出到失效價與更深一段的浮動虧損（壓力測試）。
-  4. 價格進入布局區後，等 60 分 K 推算轉為布局方向再進該批；60 分 K 若有逆向 ABC，列出 C 浪目標對照。
+  4. 價格進入布局區後，用 60 分 K 的 123 法則確認回檔結束（第 3 點不破第 1 點、收盤突破第 2 點）才進已碰到的批次；\n     60 分 K 若有逆向 ABC，列出 C 浪目標對照。
 
 輸出 data/strategy.json。規則產生的價位只是參考，不是投資建議。
 """
@@ -195,7 +195,7 @@ def plan_from(T):
             dist = (last - zone[1]) if up else (zone[0] - last)
             out["status"] = f"價格 {fx(last)} 還在{'回檔' if up else '反彈'}區{'上方' if up else '下方'}，距第一批 {fx(batches[0]['price'])} 約 {fx(dist)} 點，等待。"
         elif inside:
-            out["status"] = f"價格 {fx(last)} 已進入{'回檔' if up else '反彈'}區，等 60 分 K 轉{'上' if up else '下'}再分批{act}。"
+            out["status"] = f"價格 {fx(last)} 已進入{'回檔' if up else '反彈'}區，等 60 分 K 出現 123 確認再分批{act}。"
         elif broke:
             out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}結構失效價 {fx(r10(inv))}，日線數浪被推翻，"
                              f"停止加碼，已有部位抱單等日線重新數浪。")
@@ -233,25 +233,78 @@ def abc_detail(W, d, tf0="D"):
     return out
 
 
-def entry_signal(W, d, inside):
-    """60 分 K 主要推算轉為布局方向（逆向的 5 浪或 ABC 走完）才進該批。"""
-    R = W.get("H")
-    if not R or not R["counts"]:
-        return {"ok": False, "text": "60 分 K 資料不足。"}
-    c = R["counts"][0]
-    nxt = next((t for t in c["targets"] if not t["reached"]), None)
-    cd = (1 if nxt["price"] > R["last"]["c"] else -1) if nxt else (1 if c["invalid"]["price"] < R["last"]["c"] else -1)
-    aligned = cd == d
-    side = "向上" if d == 1 else "向下"
-    s = f"60 分 K 主要推算：{c['now']}（{c['pattern']}），推算方向{'向上' if cd == 1 else '向下'}。"
-    if aligned and inside:
-        s += f"已轉為{side}，且價格在日線{'回檔' if d == 1 else '反彈'}區內，可進該批。"
-    elif aligned:
-        s += f"雖已轉為{side}，但價格不在日線布局區，先不進場。"
+def rule123(hbars: dict, d: int, start: str, P: dict) -> dict:
+    """60 分 K 的 123 法則，確認日線回檔（反彈）是否結束。
+    做多：第 1 點 = 回檔以來的最低點；第 2 點 = 之後反彈的高點（至少 3 倍 60 分 ATR、半個日線 ATR）；
+          第 3 點 = 再拉回（至少第 1–2 點的 0.236）但沒有跌破第 1 點；60 分 K 收盤突破第 2 點即確認。
+    做空反過來。跌破（漲破）第 1 點就重新找。"""
+    keys = [k for k in sorted(hbars) if k[:10] >= start][-400:]
+    if len(keys) < 5:
+        return {"ok": False, "state": "none", "text": "日線回檔開始後的 60 分 K 還太少，等資料累積。"}
+    raw = [[k] + hbars[k][:4] for k in keys]
+    # 做空時把價格翻成負數，統一用做多的邏輯
+    bars = [[k, o * d, (h if d == 1 else l) * d, (l if d == 1 else h) * d, c * d] for k, o, h, l, c in raw]
+    A0 = txf.atr(bars)
+    # 第 1→2 點至少要有 3 倍 60 分 ATR、且不小於半個日線 ATR，避免把盤中小波動當成 123
+    A = [max(3 * a, 0.5 * float(P.get("atr") or 0)) / 1.5 for a in A0]
+    p1, p2, p3, conf = (0, bars[0][3]), None, None, None
+    for i in range(1, len(bars)):
+        _, o, h, l, c = bars[i]
+        if l < p1[1]:
+            p1, p2, p3, conf = (i, l), None, None, None
+            continue
+        if conf is not None:
+            continue
+        if p3 is None:
+            if p2 is None or h > p2[1]:
+                p2 = (i, h)
+            elif p2[1] - p1[1] >= 1.5 * A[i] and p2[1] - l >= 0.236 * (p2[1] - p1[1]):
+                p3 = (i, l)
+        else:
+            if l < p3[1]:
+                p3 = (i, l)
+            if c > p2[1]:
+                conf = i
+    pt = lambda q: {"t": bars[q[0]][0], "price": r10(q[1] * d)} if q else None  # noqa: E731
+    big = p2 is not None and p2[1] - p1[1] >= 1.5 * A[-1]
+    lo, hi = ("低", "高") if d == 1 else ("高", "低")
+    brk, dn = ("突破", "跌破") if d == 1 else ("跌破", "漲破")
+    P1, P2, P3 = pt(p1), pt(p2) if big or p3 else None, pt(p3)
+    zone = P.get("zone") or [None, None]
+    first = P["batches"][0]["price"] if P.get("batches") else None
+    reached = first is not None and (p1[1] * d <= first if d == 1 else p1[1] * d >= first)
+    filled = [i for i, b in enumerate(P.get("batches") or []) if (p1[1] * d <= b["price"] if d == 1 else p1[1] * d >= b["price"])]
+    if conf is not None:
+        state = "confirmed"
+        txt = (f"123 已確認：第 1 點 {fx(P1['price'])}（{P1['t'][5:]}）、第 2 點 {fx(P2['price'])}、第 3 點 {fx(P3['price'])}，"
+               f"{bars[conf][0][5:]} 收盤{brk}第 2 點，60 分 K 判斷{'回檔' if d == 1 else '反彈'}結束。")
+    elif p3 is not None:
+        state = "wait_break"
+        txt = (f"第 3 點 {fx(P3['price'])} 已出現（沒有{dn}第 1 點 {fx(P1['price'])}），等 60 分 K 收盤{brk}第 2 點 {fx(P2['price'])}。")
+    elif big:
+        state = "wait3"
+        txt = (f"已從第 1 點 {fx(P1['price'])} {'反彈' if d == 1 else '回落'}到第 2 點 {fx(P2['price'])}，"
+               f"等拉回形成第 3 點，不可{dn} {fx(P1['price'])}。")
     else:
-        s += f"尚未轉為{side}，等 60 分 K 出現{'下跌 5 浪或 ABC 回檔' if d == 1 else '上漲 5 浪或 ABC 反彈'}走完。"
-    return {"ok": aligned and inside, "aligned": aligned, "text": s, "now": c["now"], "pattern": c["pattern"],
-            "invalid": c["invalid"]["price"], "t": R["last"]["t"], "last": R["last"]["c"]}
+        state = "wait2"
+        txt = f"60 分 K 還在創新{lo}（目前第 1 點 {fx(P1['price'])}），等出現夠大的{'反彈' if d == 1 else '回落'}形成第 2 點。"
+    ok = state == "confirmed" and reached
+    if state == "confirmed" and not reached:
+        txt += f"但{'回檔' if d == 1 else '反彈'}沒有到第 1 批 {fx(first)} 就結束，不追價。"
+    elif ok:
+        txt += f"已碰到第 {'、'.join(str(i + 1) for i in filled)} 批價位，這幾批可依{brk}第 2 點的價位進場；更深的批次留待下一次 123。"
+    elif reached:
+        txt += f"價格已碰到第 {'、'.join(str(i + 1) for i in filled)} 批，等 123 確認再進場。"
+    else:
+        txt += f"價格還沒到第 1 批 {fx(first)}。" if first is not None else ""
+    if state in ("wait_break", "confirmed"):
+        txt += f"若之後{dn}第 1 點 {fx(P1['price'])}，代表這次 123 失敗，改等更深的批次重新找 123。"
+    show = raw[-120:]
+    return {"ok": ok, "state": state, "text": txt, "p1": P1, "p2": P2, "p3": P3,
+            "confirm_t": bars[conf][0] if conf is not None else None, "entry": P2["price"] if P2 else None,
+            "filled": [i + 1 for i in filled],
+            "bars": [[k, r10(o), r10(h), r10(l), r10(c)] for k, o, h, l, c in show],
+            "t": raw[-1][0], "last": raw[-1][4]}
 
 
 TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分"}
@@ -279,9 +332,15 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
             major = P
         elif major and P["dir"] and major["dir"]:
             P["vs_major"] = ("順著日線" if P["dir"] == major["dir"] else "逆著日線") + major["trend"]
-        inside = bool(P.get("zone")) and P["zone"][0] <= last <= P["zone"][1]
         P["abc"] = abc_detail(W, T["d"], tf) if T["d"] else []
-        P["signal"] = entry_signal(W, T["d"], inside) if T["d"] else None
+        hb = bars_by_tf.get("H") or {}
+        if not T["d"] or P.get("phase") != "correct":
+            P["signal"] = {"ok": False, "state": "trend",
+                           "text": "日線推動浪還在進行，不找 123；等推動浪結束、進入修正後再看 60 分 K。"} if T["d"] else None
+        elif not hb:
+            P["signal"] = {"ok": False, "state": "none", "text": "這個商品沒有 60 分 K，請自行確認 123。"}
+        else:
+            P["signal"] = rule123(hb, T["d"], P["points"][-1][0], P)
         out["plans"][tf] = P
     out["last"], out["last_t"] = last, last_t or (major or {}).get("data_t")
     return out

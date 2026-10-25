@@ -125,8 +125,16 @@
     $("#st-prod").onchange = () => { savePref(); calcCost(); };
     allocate();
     const G = P.signal;
-    $("#st-signal").innerHTML = `<div class="st-head"><h3>60 分 K 進場訊號</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${G ? (G.ok ? "可進場" : "等待") : "—"}</span></div>
-      <p>${esc(G ? G.text : "沒有 60 分 K 資料。")}</p>`;
+    const ST = { confirmed: "已確認", wait_break: "等突破第 2 點", wait3: "等第 3 點", wait2: "等第 2 點", trend: "推動浪中", none: "—" };
+    const badge = G ? (G.ok ? "可進場" : (ST[G.state] || "等待")) : "—";
+    const ptsRow = G && G.p1 ? `<table class="r123"><tbody>
+        <tr><td>第 1 點（${up ? "回檔低點" : "反彈高點"}）</td><td class="r">${G.p1 ? fp(G.p1.price) : "—"}</td><td class="r sub">${G.p1 ? G.p1.t.slice(5) : ""}</td></tr>
+        <tr><td>第 2 點（${up ? "反彈高點" : "回落低點"}）</td><td class="r">${G.p2 ? fp(G.p2.price) : "—"}</td><td class="r sub">${G.p2 ? G.p2.t.slice(5) : "尚未形成"}</td></tr>
+        <tr><td>第 3 點（不破第 1 點）</td><td class="r">${G.p3 ? fp(G.p3.price) : "—"}</td><td class="r sub">${G.p3 ? G.p3.t.slice(5) : "尚未形成"}</td></tr>
+        <tr><td>進場（收盤${up ? "突破" : "跌破"}第 2 點）</td><td class="r"><b>${G.p2 ? fp(G.p2.price) : "—"}</b></td><td class="r sub">${G.confirm_t ? G.confirm_t.slice(5) + " 確認" : ""}</td></tr>
+      </tbody></table>` : "";
+    $("#st-signal").innerHTML = `<div class="st-head"><h3>60 分 K 123 法則進場</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${badge}</span></div>
+      <p>${esc(G ? G.text : "沒有 60 分 K 資料。")}</p>${G && G.bars ? r123Svg(G, P) : ""}${ptsRow}`;
     $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
       return `<p>${esc(a.tf)}：A 浪 ${fp(o[1])} → ${fp(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fp(B[1])}，C 浪進行中。</p>
@@ -135,6 +143,34 @@
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
     }).join("") : `<p class="sub">60 分 K 目前沒有進行中的逆向 C 浪可對照。</p>`);
+  }
+
+  // 60 分 K 小圖：K 棒、日線布局區（色帶）、各批價位與 1／2／3 點
+  function r123Svg(G, P) {
+    const B = G.bars, Wd = 640, Ht = 260, pl = 8, pr = 62, pt = 12, pb = 22;
+    const lv = (P.batches || []).map((b) => b.price);
+    let lo = Math.min(...B.map((b) => b[3]), ...lv), hi = Math.max(...B.map((b) => b[2]), ...lv);
+    const pad = (hi - lo) * 0.05; lo -= pad; hi += pad;
+    const n = B.length, cw = (Wd - pl - pr) / n;
+    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (hi - v) / (hi - lo) * (Ht - pt - pb);
+    const up = P.dir === 1;
+    let g = "";
+    if (P.zone) g += `<rect x="${pl}" y="${Y(P.zone[1])}" width="${Wd - pl - pr}" height="${Math.max(1, Y(P.zone[0]) - Y(P.zone[1]))}" class="z"/>`;
+    lv.forEach((v, i) => { g += `<line x1="${pl}" x2="${Wd - pr}" y1="${Y(v)}" y2="${Y(v)}" class="lv"/><text x="${Wd - pr + 4}" y="${Y(v) + 4}" class="lt">${i + 1} ${fp(v)}</text>`; });
+    B.forEach((b, i) => {
+      const [, o, h, l, c] = b, cl = c >= o ? "u" : "d";
+      g += `<line x1="${X(i)}" x2="${X(i)}" y1="${Y(h)}" y2="${Y(l)}" class="w ${cl}"/><rect x="${X(i) - cw * 0.35}" y="${Y(Math.max(o, c))}" width="${Math.max(1, cw * 0.7)}" height="${Math.max(1, Math.abs(Y(o) - Y(c)))}" class="b ${cl}"/>`;
+    });
+    const idx = (t) => B.findIndex((b) => b[0] === t);
+    [["1", G.p1, up], ["2", G.p2, !up], ["3", G.p3, up]].forEach(([lab, p, below]) => {
+      if (!p) return; const i = idx(p.t); if (i < 0) return;
+      const y = Y(p.price) + (below ? 16 : -8);
+      g += `<circle cx="${X(i)}" cy="${Y(p.price)}" r="3.5" class="pt"/><text x="${X(i)}" y="${y}" class="pl" text-anchor="middle">${lab}</text>`;
+    });
+    if (G.p2) g += `<line x1="${X(Math.max(0, idx(G.p2.t)))}" x2="${Wd - pr}" y1="${Y(G.p2.price)}" y2="${Y(G.p2.price)}" class="br"/>`;
+    const tl = [0, Math.floor(n / 2), n - 1].map((i) => `<text x="${X(i)}" y="${Ht - 6}" class="tt" text-anchor="middle">${B[i][0].slice(5, 13).replace("-", "/")}</text>`).join("");
+    return `<svg class="r123-svg" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="60 分 K 與 123 點位">${g}${tl}</svg>
+      <p class="sub">色帶是日線${up ? "回檔" : "反彈"}區，橫線是四批價位，虛線是第 2 點（進場價）。</p>`;
   }
 
   function savePref() {
