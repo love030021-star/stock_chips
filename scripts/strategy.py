@@ -1,4 +1,4 @@
-"""波段逆勢布局（不設停損）：日線、60 分、30 分各自數推動浪，在修正浪的區間分三層布局，
+"""波段逆勢布局：日線、60 分、30 分各自數推動浪，在修正浪的區間分三層布局，
 用下一個較小週期的 123 法則抓進場點（日線→60 分、60 分→30 分、30 分→5 分）。
 
 回檔（反彈）三層，以被修正的那一段走勢計算：
@@ -7,7 +7,7 @@
   回檔滿足 2：0.91、0.95
 被修正的走勢：第 2 浪看第 1 浪，第 4 浪看第 3 浪，5 浪走完後看整段 1–5 浪；找不到推動浪時看最近一段走勢。
 推動浪進行中（第 3、5 浪）不追價，先列出預估的下一個修正區。
-波浪規則的失效價不當停損，只當「停止加碼、重新數浪」的位置，並算出浮動虧損（壓力測試）。
+停損設在波浪規則的失效價外 0.15 倍 ATR（失效停損）；超過停損的批次不布局。
 
 輸出 data/strategy.json。規則產生的價位只是參考，不是投資建議。
 """
@@ -90,8 +90,7 @@ WAVE_NOW = {1: "第 2 浪回檔", 2: "第 3 浪推進", 3: "第 4 浪回檔", 4:
 
 
 def plan_from(T):
-    """不設停損的分批布局：每個修正區分三層七批，越深越接近波浪規則的失效價。
-    失效價不是停損，而是「數浪被推翻」的位置：到了就停止加碼、等日線重新數浪。"""
+    """分批布局：每個修正區分三層（最多七批），停損設在波浪規則失效價之外（失效停損）。"""
     global STEP
     d, k, pts, atr = T["d"], T["k"], T["pts"], T["atr"]
     ref = abs(T["last"])
@@ -102,7 +101,7 @@ def plan_from(T):
     hl = "低" if up else "高"
     out = {"trend": "上升推動浪" if up else "下跌推動浪", "dir": d, "k": k,
            "now": WAVE_NOW.get(k, ""), "points": [[t, r10(p), str(i)] for i, (t, p) in enumerate(pts)],
-           "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr), "nostop": True}
+           "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr)}
 
     def lv(base, span, _ratios, label):
         """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2。"""
@@ -180,10 +179,15 @@ def plan_from(T):
             deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再延伸整段的 0.272"
             t1, t1s = proj - d * tot * 0.236, "回到預估第 1–5 浪的 0.236"
             t2, t2s = proj, "預估第 5 浪終點"
+    # 失效停損：結構失效價再往外 0.15 倍 ATR（避開剛好碰到失效價的假跌破）
+    stop = r10(inv - d * 0.15 * atr)
+    dropped = [b for b in batches if (b["price"] - stop) * d <= 0 or (b["price"] - inv) * d < 0]
+    batches = [b for b in batches if b not in dropped] or batches[:1]
     out.update({"phase": phase, "batches": batches, "invalid": r10(inv), "invalid_src": inv_src,
-                "stress": [{"price": r10(inv), "label": "結構失效價：" + inv_src},
-                           {"price": r10(deep), "label": "更深的壓力測試：" + deep_src}],
+                "stop": stop, "stop_src": f"失效價 {fx(inv)} 外 0.15 倍 ATR",
                 "t1": r10(t1), "t1_src": t1s, "t2": r10(t2), "t2_src": t2s})
+    if dropped:
+        out["dropped"] = [f"{b['tier'] if up else b['tier'].replace('回檔', '反彈')} {b['ratio']:g}（{fx(b['price'])}）" for b in dropped]
     if note:
         out["note"] = note
     zone = sorted([batches[0]["price"], batches[-1]["price"]])
@@ -201,11 +205,14 @@ def plan_from(T):
             hit = [b for b in batches if (last <= b["price"] if up else last >= b["price"])]
             tier = hit[-1]["tier"] if hit else batches[0]["tier"]
             out["status"] = f"價格 {fx(last)} 已進入{tier}，等 {T.get('lower_label', '小週期')} K 出現 123 確認再分批{act}。"
+        elif (last - stop) * d <= 0:
+            out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}失效停損 {fx(stop)}，{tfn}數浪被推翻，"
+                             f"全部出場，等{tfn}重新數浪。")
         elif broke:
-            out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}結構失效價 {fx(r10(inv))}，{tfn}數浪被推翻，"
-                             f"停止加碼，已有部位抱單等{tfn}重新數浪。")
+            out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}結構失效價 {fx(r10(inv))}，接近失效停損 {fx(stop)}，"
+                             f"停止加碼，{'跌破' if up else '漲破'}停損就出場。")
         else:
-            out["status"] = f"價格 {fx(last)} 已越過最後一批，不再加碼；不停損，持有到目標，{'跌破' if up else '漲破'} {fx(r10(inv))} 才算數浪錯誤。"
+            out["status"] = f"價格 {fx(last)} 已越過最後一批，不再加碼；持有到目標，{'跌破' if up else '漲破'}失效停損 {fx(stop)} 出場。"
     else:
         z = f"{fx(zone[0])}–{fx(zone[1])}"
         ex = "（已走成延伸浪）" if out.get("extended") else ""

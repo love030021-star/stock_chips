@@ -168,7 +168,7 @@
       T.items.push(Object.assign({ n: i + 1 }, b));
     });
     const tgt = P.phase === "trend" ? (P.k === 2 ? P.t1 : P.t2) : P.t1;
-    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...P.batches.map((b) => b.price), P.invalid, tgt, last].filter((v) => v != null);
+    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...P.batches.map((b) => b.price), P.invalid, P.stop, tgt, last].filter((v) => v != null);
     let lo = Math.min(...vals), hi = Math.max(...vals);
     const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
     const Wd = 1000, Ht = 420, pl = 10, pr = 120, pt = 16, pb = 26, fut = 150;
@@ -189,7 +189,7 @@
       const ps = T.items.map((x) => x.price), m = (Math.max(...ps) + Math.min(...ps)) / 2;
       g += `<text x="${xr - 8}" y="${Y(m) + 4}" class="tn" text-anchor="end">${rv(T.name)}</text>`;
     });
-    if (P.invalid != null) g += `<line x1="${pl}" x2="${xr}" y1="${Y(P.invalid)}" y2="${Y(P.invalid)}" class="inv"/><text x="${xr + 6}" y="${Y(P.invalid) + 4}" class="it">失效 ${fp(P.invalid)}</text>`;
+    if (P.stop != null) g += `<line x1="${pl}" x2="${xr}" y1="${Y(P.stop)}" y2="${Y(P.stop)}" class="inv"/><text x="${xr + 6}" y="${Y(P.stop) + (up ? 16 : -6)}" class="it">停損 ${fp(P.stop)}</text>`;
     if (tgt != null) g += `<line x1="${pl}" x2="${xr}" y1="${Y(tgt)}" y2="${Y(tgt)}" class="tg"/><text x="${xr + 6}" y="${Y(tgt) + 4}" class="tt2">${P.phase === "trend" ? "預估" : "目標"} ${fp(tgt)}</text>`;
     B.forEach((b, i) => {
       const [, o, h, l, c] = b, cl = c >= o ? "u" : "d";
@@ -228,9 +228,9 @@
     });
     const G = P.signal;
     steps.push(`<b>進場</b>：價格碰到某一批後，不直接${act}，要等 ${esc(P.entry_tf || "較小週期")} K 走出 123（第 3 點不破第 1 點、收盤${up ? "突破" : "跌破"}第 2 點）才進已碰到的批次。${G && G.text ? "目前：" + esc(G.text) : ""}`);
-    if (P.invalid != null) steps.push(`<b>失效價 ${fp(P.invalid)}</b>：${esc(P.invalid_src || "")}。不設停損，但到這裡代表數浪被推翻，停止加碼、等重新數浪；下方表格算出抱單到這裡的浮動虧損。`);
+    if (P.invalid != null) steps.push(`<b>失效停損 ${fp(P.stop)}</b>（失效價 ${fp(P.invalid)}）：${esc(P.invalid_src || "")}。到這裡代表數浪被推翻；停損放在失效價外一點的 ${fp(P.stop)}，${up ? "跌破" : "漲破"}就全部出場。${P.dropped && P.dropped.length ? `比失效停損更深的 ${esc(P.dropped.join("、"))} 不布局。` : ""}`);
     steps.push(`<b>目標</b>：目標 1 ${fp(P.t1)}（${esc(P.t1_src)}），目標 2 ${fp(P.t2)}（${esc(P.t2_src)}）。`);
-    const legend = `<div class="pf-legend"><span><i class="lg-z"></i>${wname}三層（越深顏色越濃）</span><span><i class="lg-w"></i>波浪轉折</span><span><i class="lg-p"></i>預期路徑</span><span><i class="lg-i"></i>失效價</span><span><i class="lg-t"></i>${P.phase === "trend" ? "預估終點" : "目標 1"}</span></div>`;
+    const legend = `<div class="pf-legend"><span><i class="lg-z"></i>${wname}三層（越深顏色越濃）</span><span><i class="lg-w"></i>波浪轉折</span><span><i class="lg-p"></i>預期路徑</span><span><i class="lg-i"></i>失效停損</span><span><i class="lg-t"></i>${P.phase === "trend" ? "預估終點" : "目標 1"}</span></div>`;
     return `<div class="st-head"><h3>${esc(P.tf_label)}布局圖解</h3></div>${svg}${legend}<ol class="pf-steps">${steps.map((x) => `<li>${x}</li>`).join("")}</ol>`;
   }
 
@@ -299,8 +299,8 @@
     const avg = P.batches.reduce((a, b, i) => a + b.price * lots[i], 0) / n;
     const d = P.dir;
     const g1 = (P.t1 - avg) * d * n * mult, g2 = (P.t2 - avg) * d * n * mult;
-    const stress = P.stress || (P.stop != null ? [{ price: P.stop, label: "停損：" + (P.stop_src || "") }] : []);
-    const srows = stress.map((x) => `<tr><td>${esc(x.label)}</td><td class="r">${fp(x.price)}，浮動虧損 <span class="down">${fmt((avg - x.price) * d * n * mult)}</span> ${money}</td></tr>`).join("");
+    const loss = P.stop != null ? (avg - P.stop) * d * n * mult : null;
+    const rr = loss > 0 ? g1 / loss : 0;
     let cum = 0, rows = "";
     P.batches.forEach((b, i) => {
       if (!lots[i]) return;
@@ -312,8 +312,9 @@
       <tr><td><b>全部成交平均成本</b></td><td class="r"><b>${fp(avg)}</b></td></tr>
       <tr><td>目標 1（${esc(P.t1_src)}）</td><td class="r">${fp(P.t1)}，獲利 <span class="up">${fmt(g1)}</span> ${money}</td></tr>
       <tr><td>目標 2（${esc(P.t2_src)}）</td><td class="r">${fp(P.t2)}，獲利 <span class="up">${fmt(g2)}</span> ${money}</td></tr>
-      <tr><td colspan="2" class="sub">不設停損，以下是全部成交後抱單到這些價位的浮動虧損（壓力測試）：</td></tr>${srows}
-      </tbody></table><p class="st-exit warn">不停損代表虧損沒有上限。到結構失效價時停止加碼並等日線重新數浪；請先確認保證金能撐到更深的壓力測試價位，避免被追繳或強制平倉。</p>${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${unit === "點" ? "指數沒有每點價值，損益以點數 × 口數表示。" : `${esc(prod)}每點 ${mult} ${unit}。`}部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
+      ${loss != null ? `<tr><td>失效停損（${esc(P.stop_src || "")}）</td><td class="r">${fp(P.stop)}，虧損 <span class="down">${fmt(loss)}</span> ${money}</td></tr>
+      <tr><td>風險報酬比（目標 1 ÷ 停損）</td><td class="r">${rr.toFixed(2)}</td></tr>` : ""}
+      </tbody></table>${P.dropped && P.dropped.length ? `<p class="st-exit warn">${esc(P.dropped.join("、"))} 已超過失效停損，不布局。</p>` : ""}${over}${P.phase === "trend" ? `<p class="st-exit warn">推動浪還在進行，以上是預估價位，等推動浪結束後會依實際高低點重算。</p>` : ""}<p class="st-exit">${unit === "點" ? "指數沒有每點價值，損益以點數 × 口數表示。" : `${esc(prod)}每點 ${mult} ${unit}。`}部分批次沒成交時，以上面「成交到第 N 批」的均價為準。</p>`;
   }
 
   // ---------- 選擇權籌碼 ----------
