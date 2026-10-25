@@ -335,7 +335,7 @@ select {
 .st-alloc input { width: 96px; font: 600 15px var(--num); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
 
 /* ---------- 商品切換 ---------- */
-.mkt-bar {
+.mkt-bar { flex-wrap: wrap;
   position: sticky; top: 49px; z-index: 9; display: flex; align-items: center; gap: 12px;
   padding: 10px 0; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(8px);
   border-top: 1px solid var(--line); overflow-x: auto;
@@ -376,3 +376,7 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .pf-steps { margin: 10px 0 0; padding-left: 22px; line-height: 1.75; } .pf-steps li { margin: 4px 0; }
 .plan-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (max-width: 640px) { .plan-wrap .plan-svg { min-width: 760px; } }
+.stk-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.stk-form input { flex: 1 1 200px; max-width: 280px; font: inherit; padding: 6px 10px; border: 1px solid var(--line, #ccd); border-radius: 8px; background: var(--card, #fff); color: inherit; }
+.stk-form button { font: inherit; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.stk-msg { font-size: 13px; color: var(--muted); }

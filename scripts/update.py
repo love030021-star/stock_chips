@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import chips  # noqa: E402
 import markets  # noqa: E402
+import stocks  # noqa: E402
 import strategy  # noqa: E402
 import txf  # noqa: E402
 
@@ -29,6 +30,7 @@ def main():
     steps = [
         ("台指期波浪推算", lambda: txf.run(ROOT, fetch=not args.build_only)),
         ("其他商品波浪推算", lambda: None if args.build_only else markets.run(ROOT)),
+        ("個股波浪推算", lambda: None if args.build_only else stocks.run()),
         ("台指選擇權籌碼", lambda: chips.run(ROOT, fetch=not args.build_only)),
         ("台指期波段布局", lambda: strategy.run(ROOT)),
     ]

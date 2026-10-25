@@ -15,7 +15,10 @@
 
   async function loadMarket(id) {
     if (!CACHE[id]) {
-      if (id === "TX") {
+      if (id.startsWith("S:")) {
+        const m = await getJSON(`data/stocks/${id.slice(2)}.json`);
+        CACHE[id] = { W: m, S: m && m.strategy };
+      } else if (id === "TX") {
         const [w, s] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         CACHE[id] = { W: w, S: s };
       } else {
@@ -27,13 +30,30 @@
   }
 
   function syncTfButtons() {
-    const m = MARKETS.find((x) => x.id === state.mkt) || MARKETS[0];
+    const m = MARKETS.find((x) => x.id === state.mkt) || (state.mkt.startsWith("S:") ? { tfs: ["D"] } : MARKETS[0]);
     ["waveTf", "stTf"].forEach((g) => {
       const btns = [...document.querySelectorAll(`[data-group=${g}] button`)];
       btns.forEach((b) => { b.disabled = !m.tfs.includes(b.dataset.v); });
       if (!m.tfs.includes(state[g])) state[g] = "D";
       btns.forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === state[g]));
     });
+  }
+
+  // 個股：輸入代號或名稱，載入每日預先算好的日線推算
+  let STOCKS = [];
+  function pickStock(q) {
+    q = String(q || "").trim();
+    if (!q) return;
+    const code = (q.match(/\d{4,6}[A-Z]?/) || [""])[0];
+    const hit = STOCKS.find((x) => x.code === code) || STOCKS.find((x) => x.name === q || q.includes(x.name)) || STOCKS.find((x) => x.name.includes(q));
+    if (!hit) {
+      $("#stk-msg").textContent = STOCKS.length ? `查無「${q}」：目前收錄上市市值前 150 大股票，其他股票尚未收錄。` : "個股資料還在建立中，請稍後再試。";
+      return;
+    }
+    $("#stk-msg").textContent = `${hit.code} ${hit.name}：只有日線分析，資料到 ${hit.t.replaceAll("-", "/")}。`;
+    $("#stk-in").value = `${hit.code} ${hit.name}`;
+    showMarket("S:" + hit.code);
+    document.getElementById("wave").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function showMarket(id) {
@@ -54,7 +74,10 @@
     $("#mkt-tabs").innerHTML = MARKETS.map((m) => `<button data-v="${m.id}" aria-pressed="${m.id === "TX"}">${esc(m.name.replace(/（.*）/, ""))}</button>`).join("");
     $("#mkt-tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showMarket(b.dataset.v); });
     let start = "TX";
-    try { const s = localStorage.getItem("mkt"); if (s && MARKETS.some((m) => m.id === s)) start = s; } catch (e) { /* 略過 */ }
+    STOCKS = (await getJSON("data/stocks/index.json")) || [];
+    $("#stk-list").innerHTML = STOCKS.map((x) => `<option value="${esc(x.code)} ${esc(x.name)}">`).join("");
+    $("#stk-form").addEventListener("submit", (e) => { e.preventDefault(); pickStock($("#stk-in").value); });
+    try { const s = localStorage.getItem("mkt"); if (s && (MARKETS.some((m) => m.id === s) || (s.startsWith("S:") && STOCKS.some((x) => x.code === s.slice(2))))) start = s; } catch (e) { /* 略過 */ }
     const tx = await loadMarket("TX");
     if (tx.W && tx.W.D) {
       const R = tx.W.D, t = R.partial && R.bars.length > 1 ? R.bars[R.bars.length - 2][0] : R.last.t;
