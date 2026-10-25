@@ -25,7 +25,7 @@ UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
 
 MARKETS = [
-    {"id": "TWII", "name": "加權指數", "yahoo": "^TWII", "session": "現貨盤（09:00–13:30）",
+    {"id": "TWII", "name": "加權指數", "twse": True, "session": "現貨盤（09:00–13:30）",
      "pt": {"點數": 1}, "unit": "點"},
     {"id": "TPEX", "name": "櫃買指數", "tpex": True, "session": "現貨盤",
      "pt": {"點數": 1}, "unit": "點"},
@@ -146,6 +146,94 @@ def resample(m5: dict, minutes: int) -> dict:
     return out
 
 
+# ---------------- 加權指數（證交所） ----------------
+
+TWSE = "https://www.twse.com.tw/rwd/zh/TAIEX"
+
+
+def _n(x):
+    return float(str(x).replace(",", ""))
+
+
+def twse_daily(months=26):
+    out = {}
+    d = date.today().replace(day=1)
+    for _ in range(months):
+        j = _get(f"{TWSE}/MI_5MINS_HIST", {"date": d.strftime("%Y%m01"), "response": "json"}).json()
+        for r in j.get("data") or []:
+            y, m, dd = r[0].split("/")
+            try:
+                out[f"{int(y) + 1911}-{m}-{dd}"] = [_n(r[1]), _n(r[2]), _n(r[3]), _n(r[4]), 0]
+            except ValueError:
+                continue
+        time.sleep(2)
+        d = (d - timedelta(days=1)).replace(day=1)
+    return out
+
+
+def twse_m5_day(ymd: str) -> dict:
+    """每 5 秒指數 -> 5 分 K（09:00:00 那筆是前一日收盤，略過）。"""
+    j = _get(f"{TWSE}/MI_5MINS_INDEX", {"date": ymd.replace("-", ""), "response": "json"}).json()
+    bars = {}
+    for r in j.get("data") or []:
+        t = r[0]
+        if t == "09:00:00":
+            continue
+        try:
+            v = _n(r[1])
+        except ValueError:
+            continue
+        hh, mm, ss = (int(x) for x in t.split(":"))
+        sec = hh * 3600 + mm * 60 + ss - 1          # 09:05:00 屬於 09:00 那根
+        start = sec // 300 * 300
+        key = f"{ymd} {start // 3600:02d}:{start % 3600 // 60:02d}"
+        b = bars.get(key)
+        if b is None:
+            bars[key] = [v, v, v, v, 0]
+        else:
+            b[1], b[2], b[3] = max(b[1], v), min(b[2], v), v
+    time.sleep(2)
+    return bars
+
+
+def twse_intraday(store: Path, days: list[str], keep_days=45) -> dict:
+    """累積 5 分 K，補到最近 keep_days 個交易日；最近 2 天每次重抓。"""
+    path = store / "TWII_m5.json"
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    have = {k[:10] for k in data}
+    want = days[-keep_days:]
+    for d in want:
+        if d in have and d not in want[-2:]:
+            continue
+        try:
+            bars = twse_m5_day(d)
+            for k in [k for k in data if k.startswith(d)]:
+                del data[k]
+            data.update(bars)
+        except Exception as e:  # noqa: BLE001
+            log("  加權 5 分 K", d, "失敗：", e)
+    first = want[0] if want else ""
+    data = {k: data[k] for k in sorted(data) if k[:10] >= first}
+    _dump(path, data)
+    return data
+
+
+def resample_tw(m5: dict, minutes: int) -> dict:
+    """台股現貨盤自 09:00 起算（60 分：09:00、10:00…13:00）。"""
+    out = {}
+    for k in sorted(m5):
+        mins = int(k[11:13]) * 60 + int(k[14:16]) - 540
+        start = 540 + mins // minutes * minutes
+        key = f"{k[:11]}{start // 60:02d}:{start % 60:02d}"
+        o, h, l, c, v = m5[k]
+        b = out.get(key)
+        if b is None:
+            out[key] = [o, h, l, c, v]
+        else:
+            b[1], b[2], b[3] = max(b[1], h), min(b[2], l), c
+    return out
+
+
 # ---------------- 櫃買指數 ----------------
 
 def tpex_daily(months=26):
@@ -167,10 +255,17 @@ def tpex_daily(months=26):
 
 # ---------------- 主流程 ----------------
 
-def fetch(m):
+def fetch(m, store: Path):
     tfs = {}
     if m.get("tpex"):
         tfs["D"] = tpex_daily()
+        return tfs
+    if m.get("twse"):
+        tfs["D"] = twse_daily()
+        m5 = twse_intraday(store, sorted(tfs["D"]))
+        tfs["M5"] = m5
+        tfs["M30"] = resample_tw(m5, 30)
+        tfs["H"] = resample_tw(m5, 60)
         return tfs
     sym = m["yahoo"]
     h60, gmt = yahoo(sym, "60m", "730d")
@@ -213,7 +308,7 @@ def run(root: Path):
     index, errors = [], {}
     for m in MARKETS:
         try:
-            tfs = fetch(m)
+            tfs = fetch(m, root / "data" / "store" / "markets")
             W = analyze_market(m, tfs)
             _dump(out_dir / f"{m['id']}.json", W)
             _dump(root / "data" / "store" / "markets" / f"{m['id']}_D.json",
