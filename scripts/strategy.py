@@ -214,8 +214,9 @@ def plan_from(T):
                              f"停止加碼，{'跌破' if up else '漲破'}停損就出場。")
         else:
             out["status"] = f"價格 {fx(last)} 已越過最後一批，不再加碼；持有到目標，{'跌破' if up else '漲破'}失效停損 {fx(stop)} 出場。"
-    elif (last - stop) * d <= 0:
-        out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}這組數浪的失效停損 {fx(stop)}，"
+    elif k in (2, 4) and not T.get("fallback") and (last - x[k]) * d < 0:
+        # 推動浪進行中：價格回到第 2（4）浪終點之外，這段推動浪的數法就不成立
+        out["status"] = (f"價格 {fx(last)} 已{'跌破' if up else '漲破'}第 {k} 浪終點 {fx(x[k])}，"
                          f"{tfn}推動浪的數法可能已經失效，先不布局，等{tfn}重新數浪。")
         out["broken"] = True
     else:
