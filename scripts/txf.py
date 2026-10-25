@@ -469,6 +469,8 @@ def project(c, piv, last_close):
     cur_n = last_close * d
     targets = []
     for name, v in T:
+        if v * d <= abs(last_close) * 0.05:     # 大幅下跌的個股，線性延伸可能算到 0 以下，略過
+            continue
         reached = (v - cur_n) * nd <= 0
         targets.append({"name": name, "price": rp(v * d), "reached": reached})
     targets.sort(key=lambda t: t["price"] * d * nd)
