@@ -67,6 +67,36 @@
     cards.innerHTML = countCard(p, "主要推算", "") + (a ? countCard(a, "替代推算", "alt") : "");
   }
 
+  // 下載圖片：把 SVG 的計算後樣式寫進去，再畫到 canvas 輸出 PNG
+  async function downloadWave() {
+    const svg = $("#wave-chart svg");
+    if (!svg) return;
+    const clone = svg.cloneNode(true);
+    const props = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linejoin", "opacity", "paint-order", "font-family", "font-size", "font-weight", "text-anchor", "dominant-baseline"];
+    const src = svg.querySelectorAll("*"), dst = clone.querySelectorAll("*");
+    src.forEach((el, i) => {
+      const cs = getComputedStyle(el);
+      dst[i].setAttribute("style", props.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(";"));
+    });
+    const vb = svg.viewBox.baseVal, scale = 2;
+    clone.setAttribute("width", vb.width); clone.setAttribute("height", vb.height);
+    const bg = getComputedStyle($(".wave-chart")).backgroundColor;
+    clone.insertAdjacentHTML("afterbegin", `<rect x="0" y="0" width="${vb.width}" height="${vb.height}" fill="${bg}"/>`);
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = vb.width * scale; c.height = vb.height * scale;
+      const ctx = c.getContext("2d"); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      const a = document.createElement("a");
+      a.download = `台指期波浪_${state.waveTf === "D" ? "日線" : "60分"}_${(W[state.waveTf].last.t || "").replace(/[ :]/g, "-")}.png`;
+      a.href = c.toDataURL("image/png"); a.click();
+    };
+    img.src = url;
+  }
+  $("#wave-dl").addEventListener("click", downloadWave);
+
   let rsz;
   window.addEventListener("resize", () => {
     clearTimeout(rsz);
@@ -83,35 +113,101 @@
     </div>`;
   }
 
+  // 估計文字寬度並換行（中文字約等於字級寬，英數約 0.6 倍）
+  function wrapText(t, fs, maxW) {
+    const toks = t.match(/[\x21-\x7e]+|\s|[^\x00-\x7f]/g) || [];
+    const wid = (x) => [...x].reduce((a, ch) => a + (/[\x00-\x7f]/.test(ch) ? fs * 0.62 : fs), 0);
+    const out = []; let line = "", w = 0;
+    for (const tk of toks) {
+      const tw = wid(tk);
+      const closing = /^[，。、；：）」』！？]$/.test(tk);
+      if (w + tw > maxW && line.trim() && !closing) { out.push(line.trim()); line = ""; w = 0; if (tk === " ") continue; }
+      line += tk; w += tw;
+    }
+    if (line.trim()) out.push(line.trim());
+    return out;
+  }
+
+  // 各浪比例說明
+  function legNotes(c) {
+    const p = c.points, out = [];
+    const len = (i) => Math.abs(p[i][1] - p[i - 1][1]);
+    p.forEach((pt, i) => {
+      if (i === 0) return;
+      const lab = pt[2]; let t = "";
+      if (lab === "2" || lab === "4" || lab === "B") t = `回 ${(len(i) / len(i - 1)).toFixed(2)}`;
+      else if (lab === "3" || lab === "5") t = `${(len(i) / len(1)).toFixed(2)}×①`;
+      else if (lab === "C") t = `${(len(i) / len(1)).toFixed(2)}×A`;
+      if (t) out.push({ a: p[i - 1], b: pt, t });
+    });
+    return out;
+  }
+
+  function noteRows(R, mob, tw) {
+    const prim = R.counts[0], alt = R.counts[1];
+    const f1 = mob ? 13 : 14, f2 = mob ? 12 : 13, lh = f2 + 6;
+    const rows = [];
+    const add = (c, t, f, h) => wrapText(t, f, tw).forEach((x) => rows.push({ c, t: x, f, h }));
+    if (!prim) {
+      add("note-t", "目前轉折點不足，暫無推算。", f2, lh);
+    } else {
+      const pts = prim.points, next = prim.targets.find((t) => !t.reached);
+      const seq = pts.slice(1).map((p) => p[2]).join("-");
+      add("note-m", `台指期近月 ${R.name}，${R.last.t.replaceAll("-", "/")} 收 ${fmt(R.last.c)}`, f2, lh);
+      add("note-h", `主要推算：${prim.now}（${prim.pattern}）`, f1, f1 + 8);
+      add("note-t", `${fmt(pts[0][1])} → ${fmt(pts[pts.length - 1][1])} 已走完 ${seq}，各段比例標在線旁。`, f2, lh);
+      if (next) add("note-g", `推演：往 ${fmt(next.price)}（${next.name}）前進，見右側虛線箭頭。`, f2, lh);
+      add("note-t", `${prim.invalid.note} ${fmt(prim.invalid.price)} 此推算失效（灰色點線）。`, f2, lh);
+      if (alt) add("note-m", `替代推算：${alt.now}（${alt.pattern}），失效 ${fmt(alt.invalid.price)}，圖上藍色虛線。`, f2, lh);
+    }
+    return { rows, h: 16 + rows.reduce((a, r) => a + r.h, 0) };
+  }
+
   function waveSvg(R) {
-    const W_ = Math.max(300, Math.round($("#wave-chart").clientWidth - 8)), H_ = W_ < 640 ? 320 : 420;
-    const L = 6, Rm = W_ < 640 ? 58 : 74, T = 14, B = 24;
+    const W_ = Math.max(300, Math.round($("#wave-chart").clientWidth - 8));
+    const mob = W_ < 640;
+    const L = 6, Rm = mob ? 56 : 72, B = 24;
     const bars = R.bars, n = bars.length;
+    // 上方說明區：先排好文字決定高度
+    const note = noteRows(R, mob, W_ - Rm - L - 20);
+    const T = note.h + 22;
+    const H_ = (mob ? 330 : 420) + T;
+    const fs = Math.max(6, Math.round(n * (mob ? 0.18 : 0.14)));   // 右側推演空間（K 棒數）
     const idx = new Map(bars.map((b, i) => [b[0], i]));
     const prim = R.counts[0], alt = R.counts[1];
+    const lc = R.last.c;
     let lo = Math.min(...bars.map((b) => b[3])), hi = Math.max(...bars.map((b) => b[2]));
     const span0 = hi - lo;
     const lines = [];
+    const next = prim ? prim.targets.find((t) => !t.reached) : null;
     if (prim) {
-      prim.targets.filter((t) => !t.reached).slice(0, 3).forEach((t) => lines.push({ v: t.price, cls: "tgt", txt: fmt(t.price) }));
-      lines.push({ v: prim.invalid.price, cls: "inv", txt: "失效 " + fmt(prim.invalid.price) });
+      prim.targets.filter((t) => !t.reached).slice(0, 3).forEach((t) =>
+        lines.push({ v: t.price, cls: "tgt", txt: `${t.name}　${fmt(t.price)}` }));
+      lines.push({ v: prim.invalid.price, cls: "inv", txt: `失效 ${fmt(prim.invalid.price)}` });
     }
     lines.forEach((l) => { if (l.v > hi && l.v < hi + span0 * 0.6) hi = l.v; if (l.v < lo && l.v > lo - span0 * 0.6) lo = l.v; });
-    const pad = (hi - lo) * 0.05; hi += pad; lo -= pad;
-    const cw = (W_ - L - Rm) / n;
+    const pad = (hi - lo) * 0.06; hi += pad; lo -= pad;
+    const plotR = W_ - Rm;
+    const cw = (plotR - L) / (n + fs);
     const X = (i) => L + cw * (i + 0.5);
     const Y = (v) => T + (hi - v) / (hi - lo) * (H_ - T - B);
-    let s = `<svg viewBox="0 0 ${W_} ${H_}" xmlns="http://www.w3.org/2000/svg">`;
+    const V = (y) => hi - (y - T) / (H_ - T - B) * (hi - lo);
+    const xl = X(n - 1);
+    let s = `<svg viewBox="0 0 ${W_} ${H_}" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--gold)"/></marker></defs>`;
+    // 推演區底色
+    s += `<rect class="fut" x="${xl + cw / 2}" y="${T}" width="${plotR - xl - cw / 2}" height="${H_ - T - B}"/>`;
+    s += `<text class="fut-t" x="${(xl + plotR) / 2}" y="${H_ - B - 6}" text-anchor="middle">推演</text>`;
     // 格線與座標
     const step = niceStep((hi - lo) / 6);
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
-      s += `<line class="grid-l" x1="${L}" x2="${W_ - Rm}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${W_ - Rm + 6}" y="${Y(v) + 4}">${fmt(v)}</text>`;
+      s += `<line class="grid-l" x1="${L}" x2="${plotR}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${plotR + 6}" y="${Y(v) + 4}">${fmt(v)}</text>`;
     }
     let lastLab = "", lx = -999;
     bars.forEach((b, i) => {
       const lab = R.tf === "D" ? b[0].slice(0, 7).replace("-", "/") : b[0].slice(5, 10).replace("-", "/");
-      if (lab !== lastLab && i > 2) {
-        if (X(i) - lx > 70) { s += `<text class="ax" x="${X(i)}" y="${H_ - 8}" text-anchor="middle">${lab}</text>`; lx = X(i); }
+      if (lab !== lastLab && i > 2 && X(i) - lx > 70 && X(i) < xl - 20) {
+        s += `<text class="ax" x="${X(i)}" y="${H_ - 8}" text-anchor="middle">${lab}</text>`; lx = X(i);
       }
       lastLab = lab;
     });
@@ -125,11 +221,17 @@
     // 全部轉折
     const zz = R.pivots.filter((p) => idx.has(p[0])).map((p) => `${X(idx.get(p[0]))},${Y(p[1])}`);
     if (zz.length > 1) s += `<polyline class="zz" points="${zz.join(" ")}"/>`;
-    // 目標價與失效價
+    // 目標價與失效價（名稱標在推演區）
     lines.forEach((l) => {
       if (l.v < lo || l.v > hi) return;
-      s += `<line class="${l.cls}" x1="${L}" x2="${W_ - Rm}" y1="${Y(l.v)}" y2="${Y(l.v)}"/><text class="${l.cls}-t" x="${W_ - Rm - 4}" y="${Y(l.v) - 4}" text-anchor="end">${l.txt}</text>`;
+      s += `<line class="${l.cls}" x1="${L}" x2="${plotR}" y1="${Y(l.v)}" y2="${Y(l.v)}"/>`;
+      s += `<text class="${l.cls}-t halo" x="${plotR - 4}" y="${Y(l.v) + (l.cls === "tgt" ? 14 : -4)}" text-anchor="end">${esc(l.txt)}</text>`;
     });
+    // 推演路徑：最新價 → 下一個目標
+    if (next && next.price >= lo && next.price <= hi) {
+      const x2 = X(n - 1 + fs * 0.82);
+      s += `<path class="proj" d="M${xl},${Y(lc)} Q${(xl + x2) / 2},${Y(lc)} ${x2},${Y(next.price)}" marker-end="url(#arw)"/>`;
+    }
     // 替代推算、主要推算
     const path = (c, cls) => {
       const pts = c.points.filter((p) => idx.has(p[0]));
@@ -138,17 +240,33 @@
     if (alt) path(alt, "alt");
     if (prim) {
       path(prim, "");
+      if (prim.points.length > 1) {
+        const last = prim.points[prim.points.length - 1];
+        if (idx.has(last[0])) s += `<line class="cnt-cur" x1="${X(idx.get(last[0]))}" y1="${Y(last[1])}" x2="${xl}" y2="${Y(lc)}"/>`;
+      }
+      legNotes(prim).forEach((g) => {
+        if (!idx.has(g.a[0]) || !idx.has(g.b[0])) return;
+        const mx = (X(idx.get(g.a[0])) + X(idx.get(g.b[0]))) / 2, my = (Y(g.a[1]) + Y(g.b[1])) / 2;
+        s += `<text class="ratio halo" x="${mx + 6}" y="${my}">${g.t}</text>`;
+      });
       const pts = prim.points;
       pts.forEach((p, j) => {
         if (!idx.has(p[0]) || p[2] === "0") return;
         const isHigh = j > 0 ? p[1] > pts[j - 1][1] : p[1] > pts[1][1];
         const y = Y(p[1]) + (isHigh ? -14 : 14);
-        s += `<g class="lbl"><circle cx="${X(idx.get(p[0]))}" cy="${y}" r="${W_ < 640 ? 8 : 9}"/><text x="${X(idx.get(p[0]))}" y="${y}">${esc(p[2])}</text></g>`;
+        s += `<g class="lbl"><circle cx="${X(idx.get(p[0]))}" cy="${y}" r="${mob ? 8 : 9}"/><text x="${X(idx.get(p[0]))}" y="${y}">${esc(p[2])}</text></g>`;
       });
     }
+    // 說明區
+    s += `<g class="note"><rect x="${L}" y="8" width="${plotR - L}" height="${note.h}" rx="8"/>`;
+    let yy = 8 + 10;
+    note.rows.forEach((r) => {
+      s += `<text class="${r.c}" x="${L + 10}" y="${yy + r.f}" style="font-size:${r.f}px">${esc(r.t)}</text>`;
+      yy += r.h;
+    });
+    s += `</g>`;
     // 最新價
-    const lc = R.last.c;
-    s += `<rect class="now-b" x="${W_ - Rm + 2}" y="${Y(lc) - 9}" width="${Rm - 4}" height="18" rx="3"/><text class="now-t" x="${W_ - Rm + 6}" y="${Y(lc) + 4}">${fmt(lc)}</text>`;
+    s += `<rect class="now-b" x="${plotR + 2}" y="${Y(lc) - 9}" width="${Rm - 4}" height="18" rx="3"/><text class="now-t" x="${plotR + 6}" y="${Y(lc) + 4}">${fmt(lc)}</text>`;
     return s + "</svg>";
   }
 
