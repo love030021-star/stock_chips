@@ -99,7 +99,7 @@
       ${p.credit != null ? `<tr><td>權利金收入</td><td class="r">${fmt(p.credit)} 元</td></tr>` : ""}
       <tr><td>最大虧損</td><td class="r">${fmt(p.max_loss)} 元</td></tr>
       <tr><td>損益兩平</td><td class="r">${typeof p.breakeven === "number" ? fmt(p.breakeven) : esc(p.breakeven)}</td></tr>
-      </tbody></table><p class="st-exit">${esc(p.note)}</p></div>`).join("");
+      </tbody></table><p class="st-exit ${p.weak ? "warn" : ""}">${esc(p.note)}</p></div>`).join("");
   }
 
   // ---------- 選擇權籌碼 ----------

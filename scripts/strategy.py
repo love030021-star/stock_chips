@@ -204,19 +204,45 @@ def opt_plans(strikes, d0, d, last, swing, chips):
     walls = (chips or {}).get("walls", {}).get("weekly") if chips else None
     width = 300
 
-    def spread(cp, short_k):
-        sk = near_strike(v, cp, short_k)
-        if not sk:
-            return None
+    min_dist = 1.5 * swing["atr"]   # 短腳至少離現價 1.5 倍 60 分 ATR
+
+    def one(cp, sk):
         lk = near_strike(v, cp, sk + (width if cp == "C" else -width))
         if not lk or lk == sk:
             return None
         ps, pl = px_of(v, cp, sk), px_of(v, cp, lk)
         if not ps or not pl or ps <= pl:
             return None
-        credit = ps - pl
-        w = abs(lk - sk)
-        return {"legs": [["賣", cp, sk, ps], ["買", cp, lk, pl]], "credit": credit, "w": w, "sk": sk}
+        return {"legs": [["賣", cp, sk, ps], ["買", cp, lk, pl]], "credit": ps - pl, "w": abs(lk - sk), "sk": sk}
+
+    def spread(cp, wall_k):
+        """短腳從未平倉大量區往現價移動，找第一個權利金達價差寬度 20% 的履約價。"""
+        ks = sorted(int(k) for k, p in v.get(cp + "px", {}).items() if p and p > 0)
+        if cp == "C":
+            ks = [k for k in ks if last + min_dist <= k <= max(wall_k, last + min_dist)][::-1]
+        else:
+            ks = [k for k in ks if min(wall_k, last - min_dist) <= k <= last - min_dist]
+        best = None
+        for k in ks:
+            r = one(cp, k)
+            if not r:
+                continue
+            best = best or r
+            if r["credit"] / r["w"] >= 0.2:
+                r["moved"] = k != ks[0]
+                return r
+            best = r
+        if best:
+            best["weak"] = True
+        return best
+
+    def sp_note(s, cp):
+        ratio = s["credit"] / s["w"]
+        base = (f"短腳 {s['sk']:,}" + ("（未平倉大量區權利金太少，往現價移）" if s.get("moved") else "（未平倉大量區附近）")
+                + f"，收入是寬度的 {ratio:.0%}。")
+        if s.get("weak"):
+            base += "權利金偏少、風險報酬差，不建議。"
+        return base + f"收到權利金一半時獲利出場；標的{'站上' if cp == 'C' else '跌破'} {s['sk']:,} 停損或轉倉。"
 
     res_k = min((k for k, _ in walls["res"]), default=None) if walls and walls.get("res") else r50(last + 2 * swing["atr"])
     sup_k = max((k for k, _ in walls["sup"]), default=None) if walls and walls.get("sup") else r50(last - 2 * swing["atr"])
@@ -227,7 +253,7 @@ def opt_plans(strikes, d0, d, last, swing, chips):
                 "kind": "價差", "title": f"賣出 {exp} {s['sk']:,} Put 價差（Bull Put）",
                 "legs": s["legs"], "credit": round(s["credit"] * OPT_PT),
                 "max_loss": round((s["w"] - s["credit"]) * OPT_PT), "breakeven": round(s["sk"] - s["credit"]),
-                "note": f"短腳設在 Put 未平倉大量區 {s['sk']:,} 附近。收到權利金一半時獲利出場；標的跌破 {s['sk']:,} 停損或轉倉。"})
+                "note": sp_note(s, "P"), "weak": bool(s.get("weak"))})
     if d < 0 and res_k:
         s = spread("C", res_k)
         if s:
@@ -235,7 +261,7 @@ def opt_plans(strikes, d0, d, last, swing, chips):
                 "kind": "價差", "title": f"賣出 {exp} {s['sk']:,} Call 價差（Bear Call）",
                 "legs": s["legs"], "credit": round(s["credit"] * OPT_PT),
                 "max_loss": round((s["w"] - s["credit"]) * OPT_PT), "breakeven": round(s["sk"] + s["credit"]),
-                "note": f"短腳設在 Call 未平倉大量區 {s['sk']:,} 附近。收到權利金一半時獲利出場；標的站上 {s['sk']:,} 停損或轉倉。"})
+                "note": sp_note(s, "C"), "weak": bool(s.get("weak"))})
     if d == 0 and res_k and sup_k:
         a, b = spread("C", res_k), spread("P", sup_k)
         if a and b:
@@ -246,7 +272,9 @@ def opt_plans(strikes, d0, d, last, swing, chips):
                 "legs": b["legs"] + a["legs"], "credit": round(cr * OPT_PT),
                 "max_loss": round((w - cr) * OPT_PT),
                 "breakeven": f"{b['sk'] - cr:,.0f}／{a['sk'] + cr:,.0f}",
-                "note": "看區間整理時使用。任一邊短腳被觸及就先處理那一邊；收到權利金一半時出場。"})
+                "note": "看區間整理時使用。任一邊短腳被觸及就先處理那一邊；收到權利金一半時出場。"
+                        + ("其中一邊權利金偏少，風險報酬差。" if a.get("weak") or b.get("weak") else ""),
+                "weak": bool(a.get("weak") or b.get("weak"))})
     return out
 
 

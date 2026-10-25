@@ -312,3 +312,4 @@ select {
 .st-why { margin: 8px 0 0; padding-left: 0; list-style: none; }
 .st-why li + li { margin-top: 4px; }
 @media (max-width: 760px) { .st-grid { grid-template-columns: 1fr; } }
+.st-exit.warn { color: var(--gold); font-weight: 600; }
