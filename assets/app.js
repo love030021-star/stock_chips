@@ -220,7 +220,7 @@
     if (!P) { $("#st-meta").textContent = "這個週期的資料還不夠。"; $("#st-trend").innerHTML = ""; $("#st-batches").innerHTML = ""; $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; return; }
     const up = P.dir === 1, M = S.plans.D;
     $("#st-meta").textContent = `${W.contract}，${P.tf_label}${state.mkt === "TX" ? "（全日盤）" : ""}資料到 ${P.data_t.replaceAll("-", "/")}${P.partial ? " 夜盤" : ""}（${fp(P.data_close)}），最新價 ${fp(S.last)}；進場看 ${P.entry_tf || "60 分"} K 的 123。`;
-    const pts = P.points.map((p) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fp(p[1])}`).join(" → ");
+    const pts = P.points.map((p, i) => `${p[2] === "0" ? "起點" : "第 " + p[2] + " 浪"} ${p[0].slice(5).replace("-", "/")} ${fp(p[1])}${P.kd_ok ? (P.kd_ok[i] ? " KD✓" : " KD✗") : ""}`).join(" → ");
     const major = P.tf !== "D" && M ? `<p class="sub">日線大方向：<b class="${M.dir === 1 ? "up" : M.dir === -1 ? "down" : ""}">${esc(M.trend)}</b>（${esc(M.now)}）${P.vs_major ? `，這個波段是<b>${esc(P.vs_major)}</b>${P.vs_major.startsWith("逆") ? "，風險較高、目標宜保守" : ""}` : ""}。</p>` : "";
     $("#st-trend").innerHTML = `
       <div class="st-big ${up ? "up" : P.dir === -1 ? "down" : ""}">
@@ -540,7 +540,7 @@
       <h3>${title}：${esc(c.now)}</h3>
       <div class="kind">${esc(c.pattern)}，轉折門檻 ${esc(c.threshold || "")} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
       <p>${esc(c.text)}</p>
-      ${c.kd ? `<p class="kd-fit">KD 配合：${c.kd.map((x, i) => `<span class="${x.ok ? "ok" : "no"}">${esc(c.points[i][2] === "0" ? "起" : c.points[i][2])} K${Math.round(x.k)}${x.ok ? "✓" : "✗"}</span>`).join(" ")}（${esc(c.kd_fit)} 個轉折符合）${c.kd_div ? `<br><b>${esc(c.kd_div)}</b>` : ""}</p>` : ""}
+      ${c.kd ? `<p class="kd-fit">KD 配合：${c.kd.map((x, i) => `<span class="${x.ok ? "ok" : "no"}">${esc(c.points[i][2] === "0" ? "起" : c.points[i][2])} K${Math.round(x.k)}${x.ok ? "✓" : "✗"}</span>`).join(" ")}（${esc(c.kd_fit)} 個轉折符合${c.kd_loose ? "；沒有每個轉折都符合 KD 的數法，此為放寬一個轉折的結果" : ""}）${c.kd_div ? `<br><b>${esc(c.kd_div)}</b>` : ""}</p>` : ""}
       <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fp(c.invalid.price)}</td></tr></tbody></table>
     </div>`;
   }

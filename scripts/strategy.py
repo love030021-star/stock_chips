@@ -50,19 +50,24 @@ def daily_trend(daily: dict, tf: str = "D"):
     keys = sorted(daily)[-(600 if tf == "D" else 1500):]
     bars = [[k] + daily[k][:4] for k in keys]
     a = txf.atr(bars)[-1]
+    K, D = txf.kd(bars)
     best = None
-    for mult in txf.MULTS[tf]:
-        piv, cur = txf.zigzag(bars, mult)
-        for c in txf.candidates(piv, cur):
-            if c["kind"] != "impulse":
-                continue
-            if best is None or c["score"] > best[0]["score"]:
-                best = (c, piv, cur, mult)
+    for strict in (True, False):          # 先找每個轉折都有 KD 配合的推動浪，找不到才放寬到差一個
+        for mult in txf.MULTS[tf]:
+            piv, cur = txf.zigzag(bars, mult)
+            for c in txf.kd_filter(txf.candidates(piv, cur), piv, K, D):
+                if c["kind"] != "impulse" or (strict and c["kd_miss"]):
+                    continue
+                if best is None or c["score"] > best[0]["score"]:
+                    best = (c, piv, cur, mult)
+        if best:
+            break
     last = bars[-1][4]
     if best:
         c, piv, cur, mult = best
         pts = [(bars[piv[c["s"] + j][0]][0], piv[c["s"] + j][1]) for j in range(c["k"] + 1)]
         return {"d": c["d"], "k": c["k"], "pts": pts, "atr": a, "last": last, "last_t": keys[-1],
+                "kd_ok": c["kd_ok"],
                 "mult": mult, "score": c["score"], "cur": cur and (bars[cur[0]][0], cur[1])}
     # 備援：最近兩個高點、低點的結構
     piv, cur = txf.zigzag(bars, txf.MULTS[tf][1])
@@ -107,7 +112,7 @@ def plan_from(T):
     tfn = T.get("tfn", "日線")
     x = [p[1] for p in pts]
     hl = "低" if up else "高"
-    out = {"trend": "上升推動浪" if up else "下跌推動浪", "dir": d, "k": k,
+    out = {"trend": "上升推動浪" if up else "下跌推動浪", "dir": d, "k": k, "kd_ok": T.get("kd_ok"),
            "now": WAVE_NOW.get(k, ""), "points": [[t, r10(p), str(i)] for i, (t, p) in enumerate(pts)],
            "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr)}
 

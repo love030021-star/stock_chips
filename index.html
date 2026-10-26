@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=202610260930">
+<link rel="stylesheet" href="assets/style.css?v=202610260955">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
 </head>
 <body>
@@ -61,7 +61,7 @@
     <p class="sub" id="wave-meta">載入中</p>
     <div class="wave-chart" id="wave-chart" role="img" aria-label="K 線與波浪標示"></div>
     <div class="wave-counts" id="wave-counts"></div>
-    <p class="hint">用程式找出轉折點（反轉幅度超過 ATR 的固定倍數才算），並檢查每個轉折點的 KD(9,3,3) 是否配合（低點 K ≤ 30 或黃金交叉、高點 K ≥ 70 或死亡交叉，第 5 浪與 C 浪另檢查背離），配合程度列入分數，再依艾略特波浪規則檢查：第 2 浪不跌破第 1 浪起點、第 3 浪不是最短、第 4 浪不與第 1 浪重疊；符合規則的數浪方式中，以各浪比例最接近常見費氏比例、起點最明顯者為主要推算。這是機械式推算，換一種數法可能得到不同結論，僅供參考。</p>
+    <p class="hint">用程式找出轉折點（反轉幅度超過 ATR 的固定倍數才算），並用 KD(9,3,3) 過濾：數浪的每個轉折點都要 KD 配合（低點 K ≤ 30 或黃金交叉、高點 K ≥ 70 或死亡交叉）才採用，全部數法都不符合時才放寬到只差一個轉折並標示；第 5 浪與 C 浪另檢查背離，再依艾略特波浪規則檢查：第 2 浪不跌破第 1 浪起點、第 3 浪不是最短、第 4 浪不與第 1 浪重疊；符合規則的數浪方式中，以各浪比例最接近常見費氏比例、起點最明顯者為主要推算。這是機械式推算，換一種數法可能得到不同結論，僅供參考。</p>
   </section>
 
   <section id="strategy" class="block">
@@ -97,7 +97,7 @@
         <div class="st-card" id="st-abc"></div>
       </div>
     </div>
-    <p class="hint">規則：日線、60 分、30 分各自數推動浪，判斷上升或下跌與目前浪位，修正浪才逆勢布局。回檔（反彈）分三層：強勢回檔、回檔滿足 1、回檔滿足 2，依被修正的那段走勢推算（第 2 浪看第 1 浪、第 4 浪看第 3 浪、5 浪走完看整段 1–5 浪）。價格進入區間後，用下一個較小週期的 123 法則確認（日線看 60 分、60 分看 30 分、30 分看 5 分）：第 3 點不破第 1 點、收盤突破第 2 點才進已碰到的批次。停損：設在波浪規則失效價外（第 2 浪＝第 1 浪起點、第 4 浪＝第 1 浪終點、ABC＝第 1 浪起點），跌破就全部出場；比停損更深的批次不布局。這是程式依規則算出的參考價位，不是投資建議。</p>
+    <p class="hint">規則：日線、60 分、30 分各自數推動浪（每個轉折點須有 KD 配合），判斷上升或下跌與目前浪位，修正浪才逆勢布局。回檔（反彈）分三層：強勢回檔、回檔滿足 1、回檔滿足 2，依被修正的那段走勢推算（第 2 浪看第 1 浪、第 4 浪看第 3 浪、5 浪走完看整段 1–5 浪）。價格進入區間後，用下一個較小週期的 123 法則確認（日線看 60 分、60 分看 30 分、30 分看 5 分）：第 3 點不破第 1 點、收盤突破第 2 點才進已碰到的批次。停損：設在波浪規則失效價外（第 2 浪＝第 1 浪起點、第 4 浪＝第 1 浪終點、ABC＝第 1 浪起點），跌破就全部出場；比停損更深的批次不布局。這是程式依規則算出的參考價位，不是投資建議。</p>
   </section>
 
   <section id="chips" class="block">
@@ -170,6 +170,6 @@
   <p>波浪籌碼日報。資料於每個交易日晚間與隔天清晨自動更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610260930" defer></script>
+<script src="assets/app.js?v=202610260955" defer></script>
 </body>
 </html>

@@ -295,6 +295,21 @@ def kd_turn(K, D, i, kind):
     return False
 
 
+def kd_filter(cands, piv, K, D):
+    """替每個數法標記各轉折點的 KD 配合情形，只留下最多差一個轉折的數法。"""
+    out = []
+    for c in cands:
+        pts = [piv[c["s"] + j] for j in range(c["k"] + 1)]
+        ok = [kd_turn(K, D, i, t) for i, _p, t in pts]
+        c["kd_ok"], c["kd_miss"] = ok, len(ok) - sum(ok)
+        if c["kd_miss"] > 1:
+            continue
+        c["kd_div"] = kd_divergence(c, piv, K)
+        c["score"] += 0.05 if c["kd_div"] else 0
+        out.append(c)
+    return out
+
+
 def kd_now(K, D):
     k, d = K[-1], D[-1]
     cross_up = any(K[j - 1] <= D[j - 1] and K[j] > D[j] for j in range(max(1, len(K) - 3), len(K)))
@@ -586,22 +601,18 @@ def analyze(bars_map: dict, tf: str):
     fmt = (lambda k: k.replace("-", "/")) if tf == "D" else (lambda k: k[5:].replace("-", "/"))
     times = [fmt(b[0]) for b in bars]
     K, D = kd(bars)
-    # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論；
-    # 各轉折點的 KD 配合程度（低點 K ≤ 30 或黃金交叉、高點 K ≥ 70 或死亡交叉）也列入分數
+    # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論。
+    # KD 過濾：每個轉折點都要 KD 配合（低點 K ≤ 30 或黃金交叉、高點 K ≥ 70 或死亡交叉）才採用；
+    # 全部數法都不符合時，才放寬到只差一個轉折，並在說明中標示。
     pool = []
     for mult in MULTS[tf]:
         piv, cur = zigzag(bars, mult)
         if len(piv) < 4:
             continue
-        for c in candidates(piv, cur):
-            pts = [piv[c["s"] + j] for j in range(c["k"] + 1)]
-            ok = [kd_turn(K, D, i, t) for i, _p, t in pts]
-            c["kd_ok"] = ok
-            c["score"] += 0.12 * (sum(ok) / len(ok) - 0.5)
-            c["kd_div"] = kd_divergence(c, piv, K)
-            if c["kd_div"]:
-                c["score"] += 0.05
+        for c in kd_filter(candidates(piv, cur), piv, K, D):
             pool.append((c["score"], mult, piv, cur, c))
+    strict = [t for t in pool if t[4]["kd_miss"] == 0]
+    pool = strict if strict else [t for t in pool if t[4]["kd_miss"] <= 1]
     pool.sort(key=lambda t: -t[0])
     counts, seen, prim = [], set(), None
     for score, mult, piv, cur, c in pool:
@@ -621,6 +632,7 @@ def analyze(bars_map: dict, tf: str):
             "kd": [{"k": round(K[piv[c["s"] + j][0]], 1), "ok": c["kd_ok"][j]} for j in range(c["k"] + 1)],
             "kd_fit": f'{sum(c["kd_ok"])}/{len(c["kd_ok"])}',
             "kd_div": c["kd_div"],
+            "kd_loose": c["kd_miss"] > 0,
         })
         if prim is None:
             prim = (mult, piv, cur)
