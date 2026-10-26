@@ -11,12 +11,12 @@ import markets
 TPE = timezone(timedelta(hours=8))
 
 
-CNBC = {"MNQ": "@NQ.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
+CNBC = {"MNQ": "@ND.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
 
 
 def cnbc(q, err):
     url = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
-    syms = "|".join(CNBC[m] for m in CNBC if m not in q)
+    syms = "|".join(CNBC[m] for m in CNBC if m not in q) + "|@ENQ.1|NQ.1|@NQX.1"
     if not syms:
         return
     try:
