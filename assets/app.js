@@ -103,12 +103,12 @@
   // TradingView 官方報價小工具（即時跳動，直接連你的 TV 商品）
   // 期交所授權限制：CME、COMEX、ICE 期貨不能嵌入網頁，改用 TradingView 上同標的的現貨報價看即時方向（與期貨有價差）
   const TVSYM = {
-    MNQ: ["OANDA:NAS100USD", "那斯達克 100 現貨即時（期貨不開放嵌入，與 MNQ 有價差，僅看即時方向）"],
-    GOLD: ["TVC:GOLD", "黃金現貨即時（期貨不開放嵌入，與 1OZ 有價差，僅看即時方向）"],
-    BRENT: ["TVC:UKOIL", "布蘭特現貨即時（期貨不開放嵌入，與 BRN 有價差，僅看即時方向）"],
-    JP225: ["CMCMARKETS:JAPAN225Z2026", "TradingView 即時：Japan 225 (Dec 2026)"],
-    TPEX: ["TPEX:IX0043", "TradingView：櫃買指數"],
+    JP225: ["CMCMARKETS:JAPAN225Z2026", ""],
+    TPEX: ["TPEX:IX0043", ""],
   };
+  // 期貨不能嵌入即時報價框，改讀每 5 分鐘更新一次的報價（live 分支）
+  const LIVEQ_URL = "https://raw.githubusercontent.com/love030021-star/stock_chips/live/live.json";
+  const LIVEQ = ["MNQ", "GOLD", "BRENT"];
   function tvQuote(id) {
     const box = $("#tvq");
     if (!box) return;
@@ -126,7 +126,7 @@
   function liveStart(id) {
     liveStop();
     tvQuote(id);
-    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !!TVSYM[id];
+    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !!TVSYM[id]; LIVE.qOk = false;
     if (id === "BTC") {
       LIVE.src = "Kraken";
       const open = () => {
@@ -173,7 +173,7 @@
       LIVE.stale = true;
       const show = (m) => {
         const R = m && (m.M5 || m.H || m.D);
-        if (!R || !R.last) return;
+        if (!R || !R.last || LIVE.qOk) return;
         const D = m.D && m.D.bars ? m.D.bars : [];
         const prev = D.length > 1 ? D[D.length - 2][4] : null;
         LIVE.px = R.last.c; LIVE.chg = prev ? (R.last.c / prev - 1) * 100 : null;
@@ -191,7 +191,19 @@
         }
         show(m);
       };
-      LIVE.timer = setInterval(poll, 120000);
+      const pollQ = async () => {
+        if (!LIVEQ.includes(id)) return;
+        try {
+          const r = await fetch(`${LIVEQ_URL}?t=${Math.floor(Date.now() / 60000)}`);
+          const j = await r.json();
+          const x = j && j.q && j.q[id];
+          if (!x || LIVE.mkt !== id) return;
+          LIVE.qOk = true; LIVE.px = x.px; LIVE.chg = x.chg; LIVE.t = x.t;
+          liveDraw(true);
+        } catch (e) { /* 略過 */ }
+      };
+      pollQ();
+      LIVE.timer = setInterval(() => { poll(); pollQ(); }, 60000);
     } else {
       LIVE.msg = "這個商品沒有可直接取得的免費即時報價，以下為每日更新的資料。";
     }

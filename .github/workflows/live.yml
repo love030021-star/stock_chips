@@ -1,0 +1,35 @@
+name: 期貨報價定時更新
+
+# GitHub 排程最短每 5 分鐘（實際可能延後幾分鐘）。結果放在 live 分支，網頁直接讀，不重新部署網站。
+on:
+  schedule:
+    - cron: "*/5 * * * 1-6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-quotes
+  cancel-in-progress: true
+
+jobs:
+  quotes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: 抓報價
+        run: python scripts/live_quotes.py /tmp/live.json
+      - name: 推到 live 分支（只保留一個 commit）
+        run: |
+          mkdir /tmp/out && cp /tmp/live.json /tmp/out/live.json && cd /tmp/out
+          git init -q -b live
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add live.json && git commit -qm "live quotes"
+          git push -fq "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" live
