@@ -94,12 +94,27 @@ TIERS = [("強勢回檔", (0.382, 0.44, 0.5)), ("回檔滿足 1", (0.618, 0.72, 
 WAVE_NOW = {1: "第 2 浪回檔", 2: "第 3 浪推進", 3: "第 4 浪回檔", 4: "第 5 浪推進", 5: "5 浪走完後的 ABC 修正"}
 
 
-def fext(base, a, b, m):
-    """自 base 延伸 (b - a) × m。跌幅很大時線性延伸會算到接近 0 或負值，改用等比例（對數）延伸。"""
-    lin = base + (b - a) * m
-    if lin > base * 0.15 or a <= 0 or b <= 0 or base <= 0:
-        return lin
-    return base * (b / a) ** m
+import math
+
+
+def _l(p):
+    return math.log(p) if p > 0 else None
+
+
+def rt(base, other, r):
+    """半對數回檔：自 base 往 other 回 r（用漲跌幅計算）。價格非正時退回線性。"""
+    lb, lo = _l(base), _l(other)
+    if lb is None or lo is None:
+        return base - (base - other) * r
+    return math.exp(lb - (lb - lo) * r)
+
+
+def lgx(base, a, b, m):
+    """半對數延伸：自 base 延伸 a→b 這段漲跌幅的 m 倍。"""
+    lb, la, lbb = _l(base), _l(a), _l(b)
+    if None in (lb, la, lbb):
+        return base + (b - a) * m
+    return math.exp(lb + (lbb - la) * m)
 
 
 def plan_from(T):
@@ -116,10 +131,10 @@ def plan_from(T):
            "now": WAVE_NOW.get(k, ""), "points": [[t, r10(p), str(i)] for i, (t, p) in enumerate(pts)],
            "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr)}
 
-    def lv(base, span, _ratios, label):
-        """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2。"""
+    def lv(base, other, label):
+        """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2（半對數）。"""
         # 網站上不公開切割比例：只輸出層級、價位與依據的走勢
-        return [{"tier": tn, "price": r10(base - d * span * r), "label": f"依{label}"}
+        return [{"tier": tn, "price": r10(rt(base, other, r)), "label": f"依{label}"}
                 for tn, rs in TIERS for r in rs]
 
     phase, note, mult = "correct", None, None
@@ -130,34 +145,30 @@ def plan_from(T):
                         "text": f"{tfn}找不到符合規則的推動浪，高低點結構也看不出方向，先不布局。"})
             return out
         leg = abs(x[1] - x[0])
-        batches = lv(x[1], leg, (0.382, 0.5, 0.618, 0.786), f"最近一段{'上漲' if up else '下跌'}")
+        batches = lv(x[1], x[0], f"最近一段{'上漲' if up else '下跌'}")
         inv, inv_src = x[0], f"這段走勢起點 {fx(x[0])}（{'跌破' if up else '漲破'}代表高低點結構改變）"
-        deep, deep_src = x[0] - d * leg * 0.272, "起點再往外延伸"
         t1, t1s = x[1], f"這段走勢{'高' if up else '低'}點"
-        t2, t2s = fext(x[1], x[0], x[1], 0.618), "這段走勢的延伸目標"
+        t2, t2s = lgx(x[1], x[0], x[1], 0.618), "這段走勢的延伸目標"
         out["now"] = f"沒有推動浪，依最近一段{'上漲' if up else '下跌'}布局"
         note = f"{tfn}找不到符合規則的推動浪，改用高低點結構判斷為{out['trend']}，以最近一段 {fx(x[0])} → {fx(x[1])} 的回檔區布局。"
         out["points"] = [[t, r10(p), "0" if i == 0 else "1"] for i, (t, p) in enumerate(pts)]
     elif k == 1:   # 第 2 浪
         w1 = abs(x[1] - x[0])
-        batches = lv(x[1], w1, (0.382, 0.5, 0.618, 0.786), "第 1 浪")
+        batches = lv(x[1], x[0], "第 1 浪")
         inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}（第 2 浪不可{'跌破' if up else '漲破'}）"
-        deep, deep_src = x[0] - d * w1 * 0.272, "第 1 浪起點再往外延伸"
         t1, t1s = x[1], f"第 1 浪{'高' if up else '低'}點"
-        t2, t2s = fext(x[1] - d * w1 * 0.618, x[0], x[1], 1.618), "第 3 浪預估目標"
+        t2, t2s = lgx(rt(x[1], x[0], 0.618), x[0], x[1], 1.618), "第 3 浪預估目標"
     elif k == 3:  # 第 4 浪
         w3 = abs(x[3] - x[2])
-        batches = lv(x[3], w3, (0.236, 0.382, 0.5, 0.618), "第 3 浪")
+        batches = lv(x[3], x[2], "第 3 浪")
         inv, inv_src = x[1], f"第 1 浪{'高' if up else '低'}點 {fx(x[1])}（第 4 浪不可與第 1 浪重疊）"
-        deep, deep_src = x[2], f"第 3 浪起點 {fx(x[2])}"
         t1, t1s = x[3], f"第 3 浪{'高' if up else '低'}點"
-        t2, t2s = fext(x[3] - d * w3 * 0.382, x[0], x[1], 1.0), "第 5 浪預估目標"
+        t2, t2s = lgx(rt(x[3], x[2], 0.382), x[0], x[1], 1.0), "第 5 浪預估目標"
     elif k == 5:  # 5 浪後 ABC
         tot = abs(x[5] - x[0])
-        batches = lv(x[5], tot, (0.382, 0.5, 0.618, 0.786), "第 1–5 浪")
+        batches = lv(x[5], x[0], "第 1–5 浪")
         inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}（整段 5 浪被完全吃回）"
-        deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再往外延伸"
-        t1, t1s = x[5] - d * tot * 0.236, "第一個反彈目標" if up else "第一個回落目標"
+        t1, t1s = rt(x[5], x[0], 0.236), "第一個反彈目標" if up else "第一個回落目標"
         t2, t2s = x[5], f"第 5 浪{'高' if up else '低'}點"
     else:        # 第 3、5 浪推進中：不追價，先列出預估的下一個修正區
         phase = "trend"
@@ -167,7 +178,7 @@ def plan_from(T):
         mults = (1.618, 2.618, 4.236) if k == 2 else (1.0, 1.618, 2.618)
         proj = None
         for m_ in mults:            # 價格已越過較小的目標就改用下一個延伸比例
-            p_ = fext(base, x[0], x[1], m_)
+            p_ = lgx(base, x[0], x[1], m_)
             if (p_ - last0) * d > 0:
                 proj, mult = p_, m_
                 break
@@ -179,19 +190,17 @@ def plan_from(T):
                ("較小的目標已被越過，視為延伸浪" if ext else "依第 1 浪推算"))
         out["extended"] = ext
         if k == 2:
-            batches = lv(proj, abs(proj - x[2]), (0.236, 0.382, 0.5, 0.618), "預估第 3 浪")
+            batches = lv(proj, x[2], "預估第 3 浪")
             note = f"第 3 浪推進中，預估目標 {fx(proj)}（{why}）。到達後的第 4 浪回檔區預估如下，屆時依實際{'高' if up else '低'}點重算。"
             inv, inv_src = x[1], f"第 1 浪{'高' if up else '低'}點 {fx(x[1])}（第 4 浪不可重疊）"
-            deep, deep_src = x[2], f"第 3 浪起點 {fx(x[2])}"
             t1, t1s = proj, "預估第 3 浪終點"
-            t2, t2s = fext(proj - d * abs(proj - x[2]) * 0.382, x[0], x[1], 1.0), "第 5 浪預估目標"
+            t2, t2s = lgx(rt(proj, x[2], 0.382), x[0], x[1], 1.0), "第 5 浪預估目標"
         else:
             tot = abs(proj - x[0])
-            batches = lv(proj, tot, (0.382, 0.5, 0.618, 0.786), "預估第 1–5 浪")
+            batches = lv(proj, x[0], "預估第 1–5 浪")
             note = f"第 5 浪推進中，預估目標 {fx(proj)}（{why}）。5 浪走完後的 ABC 修正區預估如下。"
             inv, inv_src = x[0], f"第 1 浪起點 {fx(x[0])}"
-            deep, deep_src = x[0] - d * tot * 0.272, "第 1 浪起點再往外延伸"
-            t1, t1s = proj - d * tot * 0.236, "第一個反彈目標" if up else "第一個回落目標"
+            t1, t1s = rt(proj, x[0], 0.236), "第一個反彈目標" if up else "第一個回落目標"
             t2, t2s = proj, "預估第 5 浪終點"
     # 失效停損：結構失效價再往外 0.15 倍 ATR（避開剛好碰到失效價的假跌破）
     stop = inv - d * 0.15 * atr

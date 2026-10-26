@@ -459,6 +459,18 @@ def significance(piv, s, d):
     return sum(1 for q in prev if p <= q) / len(prev)
 
 
+def L(p):
+    """半對數（semi-log）：波浪比例、回檔、延伸都用對數價格計算，等於用漲跌幅衡量。"""
+    return math.log(p) if p > 0 else p
+
+
+def E(v):
+    return math.exp(v) if LOG else v
+
+
+LOG = True
+
+
 def candidates(piv, cur):
     n = len(piv)
     out = []
@@ -468,8 +480,8 @@ def candidates(piv, cur):
             break
         pts = [piv[s + j][1] for j in range(k + 1)]
         d = 1 if pts[1] > pts[0] else -1
-        x = [p * d for p in pts]
-        c = cur[1] * d if cur else None
+        x = [L(p) * d for p in pts]
+        c = L(cur[1]) * d if cur else None
         ok, g, _ = check_impulse(x, c)
         if ok:
             sig = significance(piv, s, d)
@@ -481,8 +493,8 @@ def candidates(piv, cur):
             continue
         pts = [piv[s + j][1] for j in range(k + 1)]
         d = 1 if pts[1] > pts[0] else -1
-        x = [p * d for p in pts]
-        c = cur[1] * d if cur else None
+        x = [L(p) * d for p in pts]
+        c = L(cur[1]) * d if cur else None
         ok, g = check_zigzag(x, c)
         if ok:
             sig = significance(piv, s, d)
@@ -509,7 +521,7 @@ def kd_divergence(c, piv, K):
 def project(c, piv, last_close):
     """進行中波段的目標價與失效價（實際價格）。"""
     s, k, d = c["s"], c["k"], c["d"]
-    x = [piv[s + j][1] * d for j in range(k + 1)]
+    x = [L(piv[s + j][1]) * d for j in range(k + 1)]   # 半對數
     T = []
     up = d == 1
     if c["kind"] == "impulse":
@@ -544,15 +556,13 @@ def project(c, piv, last_close):
     # 方向：進行中波段與前一波相反
     lastdir = 1 if x[-1] > x[-2] else -1
     nd = -lastdir  # 正規化空間的進行方向
-    cur_n = last_close * d
+    cur_n = L(last_close) * d
     targets = []
     for name, v in T:
-        if v * d <= abs(last_close) * 0.05:     # 大幅下跌的個股，線性延伸可能算到 0 以下，略過
-            continue
         reached = (v - cur_n) * nd <= 0
-        targets.append({"name": name, "price": rp(v * d), "reached": reached})
+        targets.append({"name": name, "price": rp(E(v * d)), "reached": reached})
     targets.sort(key=lambda t: t["price"] * d * nd)
-    return targets, {"price": rp(inv * d), "note": note}
+    return targets, {"price": rp(E(inv * d)), "note": note}
 
 
 def labels_for(c):

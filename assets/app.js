@@ -10,6 +10,8 @@
   const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString("zh-TW", { minimumFractionDigits: d, maximumFractionDigits: d });
   // 價格：千元以上不顯示小數，以下顯示兩位（原油、櫃買指數）
   const fp = (n, d) => n == null ? "—" : fmt(n, d != null ? d : Math.abs(n) < 1000 ? 2 : 0);
+  const lg = (v) => (v > 0 ? Math.log(v) : v), ul = (v) => (lo0 > 0 ? Math.exp(v) : v);
+  const lo0 = 1;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
   const getJSON = (u) => fetch(`${u}?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
@@ -315,7 +317,8 @@
     const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
     const Wd = 1000, Ht = 420, pl = 10, pr = 120, pt = 16, pb = 26, fut = 150;
     const cw = (Wd - pl - pr - fut) / n;
-    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (hi - v) / (hi - lo) * (Ht - pt - pb);
+    const lh = lg(hi), ll = lg(lo);
+    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (lh - lg(v)) / (lh - ll) * (Ht - pt - pb);
     const xr = Wd - pr, idx = (t) => B.findIndex((b) => b[0] === t);
     let g = "";
     const op = { "強勢回檔": 0.07, "回檔滿足 1": 0.14, "回檔滿足 2": 0.22 };
@@ -383,7 +386,8 @@
     let lo = Math.min(...B.map((b) => b[3]), ...lv), hi = Math.max(...B.map((b) => b[2]), ...lv);
     const pad = (hi - lo) * 0.05; lo -= pad; hi += pad;
     const n = B.length, cw = (Wd - pl - pr) / n;
-    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (hi - v) / (hi - lo) * (Ht - pt - pb);
+    const lh = lg(hi), ll = lg(lo);
+    const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (lh - lg(v)) / (lh - ll) * (Ht - pt - pb);
     const up = P.dir === 1;
     let g = "";
     if (P.zone) g += `<rect x="${pl}" y="${Y(P.zone[1])}" width="${Wd - pl - pr}" height="${Math.max(1, Y(P.zone[0]) - Y(P.zone[1]))}" class="z"/>`;
@@ -582,7 +586,7 @@
   // 各浪比例說明
   function legNotes(c) {
     const p = c.points, out = [];
-    const len = (i) => Math.abs(p[i][1] - p[i - 1][1]);
+    const len = (i) => Math.abs(lg(p[i][1]) - lg(p[i - 1][1]));   // 半對數：用漲跌幅比較各浪
     p.forEach((pt, i) => {
       if (i === 0) return;
       const lab = pt[2]; let t = "";
@@ -641,8 +645,10 @@
     const plotR = W_ - Rm;
     const cw = (plotR - L) / (n + fs);
     const X = (i) => L + cw * (i + 0.5);
-    const Y = (v) => T + (hi - v) / (hi - lo) * (H_ - T - B);
-    const V = (y) => hi - (y - T) / (H_ - T - B) * (hi - lo);
+    // 半對數價格軸：相同距離代表相同漲跌幅
+    const lh = lg(hi), ll = lg(lo);
+    const Y = (v) => T + (lh - lg(v)) / (lh - ll) * (H_ - T - B);
+    const V = (y) => ul(lh - (y - T) / (H_ - T - B) * (lh - ll));
     const xl = X(n - 1);
     let s = `<svg viewBox="0 0 ${W_} ${H_}" xmlns="http://www.w3.org/2000/svg">
       <defs><marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--gold)"/></marker></defs>`;
