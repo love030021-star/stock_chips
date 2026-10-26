@@ -37,7 +37,7 @@ MARKETS = [
      "pt": {"BZ 1000 桶（美元）": 1000}, "unit": "美元"},
     {"id": "BTC", "name": "比特幣（BTC）", "tv": "COINBASE_BTCUSD", "kraken": "XBTUSD", "crypto": True,
      "session": "24 小時", "pt": {"1 BTC（美元）": 1, "CME MBT 0.1 BTC（美元）": 0.1}, "unit": "美元"},
-    {"id": "JP225", "name": "日經 225（Japan 225）", "tv": "OANDA_JP225YJPY",
+    {"id": "JP225", "name": "日經 225（Japan 225 Dec 2026）", "tv": "CMCMARKETS_JAPAN225Z2026", "tv_hist": "OANDA_JP225YJPY",
      "session": "全時段", "pt": {"點數（日圓）": 1, "大阪日經 mini（日圓）": 100}, "unit": "日圓"},
 ]
 
@@ -323,6 +323,17 @@ def fetch(m, store: Path, root: Path):
             if tf in tv:
                 tfs[tf] = tv[tf]
         return tfs
+    if m.get("tv_hist") and "D" in tv:
+        # 合約日 K 歷史太短：用現貨日 K 補前面的日子，價格加上重疊期間的平均價差（基差）
+        hist = tv_load(root, m["tv_hist"]).get("D", {})
+        common = sorted(set(hist) & set(tv["D"]))[-20:]
+        if hist and common:
+            basis = sum(tv["D"][k][3] - hist[k][3] for k in common) / len(common)
+            first = min(tv["D"])
+            for k, b in hist.items():
+                if k < first:
+                    tv["D"][k] = [b[0] + basis, b[1] + basis, b[2] + basis, b[3] + basis, b[4]]
+            tv["D"] = dict(sorted(tv["D"].items()))
     if "D" in tv and "H" in tv:
         m["source"] = "TradingView"
         return tv
