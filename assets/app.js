@@ -123,7 +123,7 @@
     sc.textContent = JSON.stringify({ symbol: TVSYM[id][0], width: "100%", isTransparent: true, colorTheme: dark ? "dark" : "light", locale: "zh_TW" });
     box.firstChild.appendChild(sc);
   }
-  // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
+  // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每 30 分鐘（:04、:34）抓資料、約 :08、:38 重算完成（週一～週六）
   const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
   function nextTpe(fn) {
     const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
@@ -140,9 +140,9 @@
   function nextPlan() {
     return nextTpe((t, now) => {
       const b = new Date(t); b.setUTCSeconds(0, 0);
-      b.setUTCMinutes(38);
-      if (b <= t) b.setUTCHours(b.getUTCHours() + 1);
-      while (b.getUTCDay() === 0) { b.setUTCDate(b.getUTCDate() + 1); b.setUTCHours(0, 38); }
+      const m = t.getUTCMinutes();
+      if (m < 8) b.setUTCMinutes(8); else if (m < 38) b.setUTCMinutes(38); else { b.setUTCHours(b.getUTCHours() + 1); b.setUTCMinutes(8); }
+      while (b.getUTCDay() === 0) { b.setUTCDate(b.getUTCDate() + 1); b.setUTCHours(0, 8); }
       return b.getTime() - 8 * 3600e3 - now;
     });
   }
