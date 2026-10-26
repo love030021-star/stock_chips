@@ -138,6 +138,31 @@
       };
       poll();
       LIVE.timer = setInterval(poll, 30000);
+    } else if (!id.startsWith("S:") && id !== "TX") {
+      // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
+      LIVE.src = "TradingView・每小時更新";
+      LIVE.stale = true;
+      const show = (m) => {
+        const R = m && (m.M5 || m.H || m.D);
+        if (!R || !R.last) return;
+        const D = m.D && m.D.bars ? m.D.bars : [];
+        const prev = D.length > 1 ? D[D.length - 2][4] : null;
+        LIVE.px = R.last.c; LIVE.chg = prev ? (R.last.c / prev - 1) * 100 : null;
+        LIVE.t = String(R.last.t).slice(5).replace("-", "/");
+        liveDraw(true);
+      };
+      show(CACHE[id] && CACHE[id].W);
+      const poll = async () => {
+        const m = await getJSON(`data/markets/${id}.json`);
+        if (!m || LIVE.mkt !== id) return;
+        const old = CACHE[id] && CACHE[id].W;
+        if (!old || m.generated_at !== old.generated_at) {
+          CACHE[id] = { W: m, S: m.strategy };
+          if (state.mkt === id) { W = m; SP = null; renderWave(); renderStrategy(m.strategy); }
+        }
+        show(m);
+      };
+      LIVE.timer = setInterval(poll, 120000);
     } else {
       LIVE.msg = "這個商品沒有可直接取得的免費即時報價，以下為每日更新的資料。";
     }
