@@ -96,7 +96,14 @@
     el.innerHTML = `<span class="dot"></span><b>${LIVE.stale ? "最新" : "即時"} ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}・${esc(LIVE.src)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
   }
   // TradingView 官方報價小工具（即時跳動，直接連你的 TV 商品）
-  const TVSYM = { MNQ: "CME_MINI:MNQ1!", GOLD: "COMEX:1OZ1!", BRENT: "ICEEUR:BRN1!", JP225: "CMCMARKETS:JAPAN225Z2026", TPEX: "TPEX:IX0043" };
+  // 期交所授權限制：CME、COMEX、ICE 期貨不能嵌入網頁，改用 TradingView 上同標的的現貨報價看即時方向（與期貨有價差）
+  const TVSYM = {
+    MNQ: ["OANDA:NAS100USD", "那斯達克 100 現貨即時（期貨不開放嵌入，與 MNQ 有價差，僅看即時方向）"],
+    GOLD: ["TVC:GOLD", "黃金現貨即時（期貨不開放嵌入，與 1OZ 有價差，僅看即時方向）"],
+    BRENT: ["TVC:UKOIL", "布蘭特現貨即時（期貨不開放嵌入，與 BRN 有價差，僅看即時方向）"],
+    JP225: ["CMCMARKETS:JAPAN225Z2026", "TradingView 即時：Japan 225 (Dec 2026)"],
+    TPEX: ["TPEX:IX0043", "TradingView：櫃買指數"],
+  };
   function tvQuote(id) {
     const box = $("#tvq");
     if (!box) return;
@@ -104,11 +111,11 @@
     box.hidden = !TVSYM[id];
     if (!TVSYM[id]) return;
     const dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    box.innerHTML = '<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
+    box.innerHTML = '<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div><small class="tvq-note">' + esc(TVSYM[id][1]) + "</small>";
     const sc = document.createElement("script");
     sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js";
     sc.async = true;
-    sc.textContent = JSON.stringify({ symbol: TVSYM[id], width: "100%", isTransparent: true, colorTheme: dark ? "dark" : "light", locale: "zh_TW" });
+    sc.textContent = JSON.stringify({ symbol: TVSYM[id][0], width: "100%", isTransparent: true, colorTheme: dark ? "dark" : "light", locale: "zh_TW" });
     box.firstChild.appendChild(sc);
   }
   function liveStart(id) {

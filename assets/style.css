@@ -398,3 +398,4 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 
 /* TradingView 即時報價小工具 */
 .tvq { flex-basis: 100%; max-width: 420px; min-height: 70px; }
+.tvq-note { display: block; color: var(--muted, #6b7280); font-size: 12px; margin-top: 2px; }
