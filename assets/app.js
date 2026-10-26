@@ -123,6 +123,40 @@
     sc.textContent = JSON.stringify({ symbol: TVSYM[id][0], width: "100%", isTransparent: true, colorTheme: dark ? "dark" : "light", locale: "zh_TW" });
     box.firstChild.appendChild(sc);
   }
+  // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
+  const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
+  function nextTpe(fn) {
+    const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
+    return fn(tpe, now);
+  }
+  function nextQuote() {
+    return nextTpe((t, now) => {
+      const m = t.getUTCMinutes(), base = new Date(t); base.setUTCSeconds(0, 0);
+      let add = 5 - (m % 5) + 1; if (add > 5) add -= 5;
+      base.setUTCMinutes(m + add);
+      return base.getTime() - 8 * 3600e3 - now;
+    });
+  }
+  function nextPlan() {
+    return nextTpe((t, now) => {
+      const b = new Date(t); b.setUTCSeconds(0, 0);
+      b.setUTCMinutes(38);
+      if (b <= t) b.setUTCHours(b.getUTCHours() + 1);
+      while (b.getUTCDay() === 0) { b.setUTCDate(b.getUTCDate() + 1); b.setUTCHours(0, 38); }
+      return b.getTime() - 8 * 3600e3 - now;
+    });
+  }
+  const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
+  function cdTick() {
+    const el = $("#cd"), id = state.mkt;
+    if (!el) return;
+    if (!id || id === "TX" || id.startsWith("S:")) { el.textContent = ""; return; }
+    const parts = [];
+    if (CD_QUOTE.includes(id)) parts.push(`報價下次更新 <b>${mmss(nextQuote())}</b>`);
+    parts.push(`布局下次重算 <b>${mmss(nextPlan())}</b>`);
+    el.innerHTML = parts.join("　");
+  }
+  setInterval(cdTick, 1000);
   function liveStart(id) {
     liveStop();
     tvQuote(id);
@@ -208,6 +242,7 @@
       LIVE.msg = "這個商品沒有可直接取得的免費即時報價，以下為每日更新的資料。";
     }
     liveDraw(true);
+    cdTick();
   }
 
   async function showMarket(id) {
