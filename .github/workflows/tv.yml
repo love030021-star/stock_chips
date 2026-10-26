@@ -1,0 +1,59 @@
+name: TV 資料更新後重算
+
+# 排程把 TradingView K 線推上來（data/store/tv）後，只重算國際盤與指數並部署，約 1～2 分鐘。
+on:
+  push:
+    branches: [main]
+    paths: ["data/store/tv/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: tv-update
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝套件
+        run: pip install -r requirements.txt
+
+      - name: 重算各市場
+        env:
+          TZ: Asia/Taipei
+        run: python scripts/markets.py
+
+      - name: 提交結果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/markets data/store/markets
+          if git diff --cached --quiet; then
+            echo "沒有變動"
+          else
+            git commit -m "TV 資料重算 $(TZ=Asia/Taipei date '+%F %H:%M')"
+            git pull --rebase -X theirs origin main || true
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
