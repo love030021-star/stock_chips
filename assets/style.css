@@ -395,3 +395,6 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .kd-svg .gc { fill: var(--up); } .kd-svg .dc { fill: var(--down); }
 .kd-fit { font-size: 13px; color: var(--muted); } .kd-fit .ok { color: #2e7d4f; } .kd-fit .no { color: #a33; }
 .kd-line { font-size: 14px; } .kd-line.ok b { color: #2e7d4f; }
+
+/* TradingView 即時報價小工具 */
+.tvq { flex-basis: 100%; max-width: 420px; min-height: 70px; }
