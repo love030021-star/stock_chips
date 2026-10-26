@@ -76,16 +76,18 @@ a { color: inherit; }
 .hero { max-width: 1080px; margin: 0 auto; padding: 40px 16px 32px; }
 .hero-date { margin: 0 0 8px; color: var(--muted); font-size: 15px; }
 .hero-title {
-  margin: 0; font: 900 clamp(44px, 13.4vw, 132px)/1.02 var(--serif);
+  margin: 0; font: 900 clamp(34px, 9.2vw, 92px)/1.05 var(--serif);
   display: flex; flex-wrap: wrap; gap: 0 .28em; letter-spacing: .02em;
 }
 .hero-title span { position: relative; padding-bottom: .1em; }
 .hero-title span::after {
   content: ""; position: absolute; left: .04em; right: .04em; bottom: 0; height: .09em;
 }
-.hero-title span:nth-child(1)::after { background: linear-gradient(90deg, var(--s1) 50%, var(--s2) 50%); }
-.hero-title span:nth-child(2)::after { background: var(--s4); }
-.hero-title span:nth-child(3)::after { background: var(--s5); }
+.hero-title span:nth-child(1)::after { background: var(--s1); }
+.hero-title span:nth-child(2)::after { background: var(--s2); }
+.hero-title span:nth-child(3)::after { background: var(--s3); }
+.hero-title span:nth-child(4)::after { background: var(--s4); }
+.hero-title span:nth-child(5)::after { background: var(--s5); }
 .hero-lede { max-width: 36em; margin: 24px 0 0; font-size: 17px; color: var(--muted); }
 .hero-index {
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
