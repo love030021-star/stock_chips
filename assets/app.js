@@ -86,6 +86,11 @@
     const now = Date.now();
     if (!force && now - LIVE.lastDraw < 800) return;
     LIVE.lastDraw = now;
+    if (LIVE.widget) {   // 有即時報價框時只顯示布局提示，不重複列價格
+      const z = LIVE.px != null ? liveZone(LIVE.px) : "";
+      el.innerHTML = z ? `<span class="lz">${esc(z)}</span>` : "";
+      return;
+    }
     if (LIVE.px == null) {
       el.innerHTML = LIVE.src ? `<span class="dot"></span>連線中…（${esc(LIVE.src)}）` : `<span class="dot off"></span>${esc(LIVE.msg || "")}`;
       el.className = "live";
@@ -111,7 +116,7 @@
     box.hidden = !TVSYM[id];
     if (!TVSYM[id]) return;
     const dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    box.innerHTML = '<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div><small class="tvq-note">' + esc(TVSYM[id][1]) + "</small>";
+    box.innerHTML = '<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
     const sc = document.createElement("script");
     sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js";
     sc.async = true;
@@ -121,7 +126,7 @@
   function liveStart(id) {
     liveStop();
     tvQuote(id);
-    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false;
+    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !!TVSYM[id];
     if (id === "BTC") {
       LIVE.src = "Kraken";
       const open = () => {
@@ -164,7 +169,7 @@
       LIVE.timer = setInterval(poll, 30000);
     } else if (!id.startsWith("S:") && id !== "TX") {
       // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
-      LIVE.src = "TradingView・每小時更新";
+      LIVE.src = "";
       LIVE.stale = true;
       const show = (m) => {
         const R = m && (m.M5 || m.H || m.D);
