@@ -23,6 +23,8 @@ def cnbc(q, err):
         j = markets._get(url, {"symbols": syms, "requestMethod": "itv", "noform": "1", "partnerId": "2",
                                "fund": "1", "exthrs": "1", "output": "json"}, tries=2).json()
         rows = j["FormattedQuoteResult"]["FormattedQuote"]
+        if isinstance(rows, dict):
+            rows = [rows]
         for mid, sym in CNBC.items():
             for r in rows:
                 if r.get("symbol") == sym and r.get("last"):
@@ -34,6 +36,9 @@ def cnbc(q, err):
                     except ValueError:
                         t = datetime.now(TPE).strftime("%m/%d %H:%M")
                     q[mid] = {"px": px, "chg": float(chg) if chg not in ("", "UNCH") else 0.0, "t": t}
+        miss = [m for m in CNBC if m not in q]
+        if miss:
+            err["miss"] = [{k: r.get(k) for k in ("symbol", "last", "code", "name")} for r in rows]
     except Exception as e:  # noqa: BLE001
         err["cnbc"] = str(e)[:300]
 
