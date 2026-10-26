@@ -255,8 +255,8 @@ def plan_from(T):
     return out
 
 
-LOWER = {"D": ("H",), "H": ("M30",), "M30": ("M5",)}
-ENTRY_TF = {"D": "H", "H": "M30", "M30": "M5"}   # 各週期布局用來找 123 的較小週期
+LOWER = {"D": ("H",), "H": ("M30",), "M30": ("M5",), "M5": ()}
+ENTRY_TF = {"D": "H", "H": "M30", "M30": "M5", "M5": "M5"}   # 5 分沒有更小週期，用 5 分 K 自己找 123   # 各週期布局用來找 123 的較小週期
 TFN = {"D": "日線", "H": "60 分", "M30": "30 分", "M5": "5 分"}
 
 
@@ -350,7 +350,7 @@ def rule123(hbars: dict, d: int, start: str, P: dict, ln: str = "60 分", pn: st
             "t": raw[-1][0], "last": raw[-1][4]}
 
 
-TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分"}
+TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分", "M5": "5 分"}
 
 
 def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
@@ -360,7 +360,7 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
     last_t = lw.get("last", {}).get("t")
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "pt": pt, "plans": {}}
     major = None
-    for tf in ("D", "H", "M30"):   # 各週期分開布局，用下一個較小週期的 123 抓進場
+    for tf in ("D", "H", "M30", "M5"):   # 各週期分開布局，用下一個較小週期的 123 抓進場
         bars = bars_by_tf.get(tf) or {}
         if len(bars) < 60:
             continue
