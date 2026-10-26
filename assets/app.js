@@ -108,7 +108,7 @@
   };
   // 期貨不能嵌入即時報價框，改讀每 5 分鐘更新一次的報價（live 分支）
   const LIVEQ_URL = "https://raw.githubusercontent.com/love030021-star/stock_chips/live/live.json";
-  const LIVEQ = ["MNQ", "GOLD", "BRENT"];
+  const LIVEQ = [];   // 免費來源的期貨報價有延遲且合約月份不同，已停用，改用你 TradingView 的每小時資料
   function tvQuote(id) {
     const box = $("#tvq");
     if (!box) return;
@@ -152,8 +152,7 @@
     if (!el) return;
     if (!id || id === "TX" || id.startsWith("S:")) { el.textContent = ""; return; }
     const parts = [];
-    if (CD_QUOTE.includes(id)) parts.push(`報價下次更新 <b>${mmss(nextQuote())}</b>`);
-    parts.push(`布局下次重算 <b>${mmss(nextPlan())}</b>`);
+    parts.push(`${CD_QUOTE.includes(id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
     el.innerHTML = parts.join("　");
   }
   setInterval(cdTick, 1000);

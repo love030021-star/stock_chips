@@ -1,9 +1,7 @@
 name: 期貨報價定時更新
 
-# GitHub 排程最短每 5 分鐘（實際可能延後幾分鐘）。結果放在 live 分支，網頁直接讀，不重新部署網站。
+# 已停用排程（免費來源有延遲、合約月份與 TradingView 不同）。GitHub 排程最短每 5 分鐘（實際可能延後幾分鐘）。結果放在 live 分支，網頁直接讀，不重新部署網站。
 on:
-  schedule:
-    - cron: "*/5 * * * 1-6"
   workflow_dispatch:
 
 permissions:
