@@ -1,4 +1,4 @@
-"""每 5 分鐘抓一次期貨最新價（沒有可嵌入網頁的即時報價的商品），寫成 live.json。
+"""每 5 分鐘抓一次期貨最新價（小娜看 NQ 近月、黃金看 GC 近月、布蘭特看 ICE 近月），寫成 live.json。
 
 輸出格式：{"at": 台北時間, "q": {市場id: {"px", "chg", "t"}}}
 """
@@ -16,7 +16,7 @@ CNBC = {"MNQ": "@ND.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
 
 def cnbc(q, err):
     url = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
-    syms = "|".join(CNBC[m] for m in CNBC if m not in q) + "|@ENQ.1|NQ.1|@NQX.1"
+    syms = "|".join(CNBC[m] for m in CNBC if m not in q)
     if not syms:
         return
     try:
