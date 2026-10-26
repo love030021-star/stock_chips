@@ -37,6 +37,8 @@ MARKETS = [
      "pt": {"BZ 1000 桶（美元）": 1000}, "unit": "美元"},
     {"id": "BTC", "name": "比特幣（BTC）", "tv": "COINBASE_BTCUSD", "kraken": "XBTUSD", "crypto": True,
      "session": "24 小時", "pt": {"1 BTC（美元）": 1, "CME MBT 0.1 BTC（美元）": 0.1}, "unit": "美元"},
+    {"id": "JP225", "name": "日經 225（Japan 225）", "tv": "OANDA_JP225YJPY",
+     "session": "全時段", "pt": {"點數（日圓）": 1, "大阪日經 mini（日圓）": 100}, "unit": "日圓"},
 ]
 
 _s = requests.Session()
