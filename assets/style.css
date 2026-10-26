@@ -387,3 +387,11 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .live .dot { width: 8px; height: 8px; border-radius: 50%; background: #2e9d5b; display: inline-block; align-self: center; animation: livepulse 1.6s infinite; }
 .live .dot.off { background: var(--muted); animation: none; opacity: .5; }
 @keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+.kd-strip { margin-top: -4px; }
+.kd-svg { width: 100%; height: auto; display: block; }
+.kd-svg .k { fill: none; stroke: #2f6fb3; stroke-width: 1.4; } .kd-svg .d { fill: none; stroke: #C98A0B; stroke-width: 1.2; }
+.kd-svg .lv { stroke: var(--muted); stroke-width: .6; stroke-dasharray: 3 3; } .kd-svg .mid { stroke: var(--line, #ddd); stroke-width: .6; }
+.kd-svg .t { fill: var(--muted); font-size: 10px; } .kd-svg .lab { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.kd-svg .gc { fill: var(--up); } .kd-svg .dc { fill: var(--down); }
+.kd-fit { font-size: 13px; color: var(--muted); } .kd-fit .ok { color: #2e7d4f; } .kd-fit .no { color: #a33; }
+.kd-line { font-size: 14px; } .kd-line.ok b { color: #2e7d4f; }

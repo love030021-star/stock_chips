@@ -275,7 +275,7 @@
         <tr><td>進場（收盤${up ? "突破" : "跌破"}第 2 點）</td><td class="r"><b>${G.p2 ? fp(G.p2.price) : "—"}</b></td><td class="r sub">${G.confirm_t ? G.confirm_t.slice(5) + " 確認" : ""}</td></tr>
       </tbody></table>` : "";
     $("#st-signal").innerHTML = `<div class="st-head"><h3>${esc(P.entry_tf || "60 分")} K 123 法則進場</h3><span class="st-dir ${G && G.ok ? (up ? "up" : "down") : ""}">${badge}</span></div>
-      <p>${esc(G ? G.text : "沒有較小週期的 K 線資料。")}</p>${G && G.bars ? r123Svg(G, P) : ""}${ptsRow}`;
+      <p>${esc(G ? G.text : "沒有較小週期的 K 線資料。")}</p>${kdLine(P)}${G && G.bars ? r123Svg(G, P) : ""}${ptsRow}`;
     $("#st-abc").innerHTML = `<div class="st-head"><h3>修正浪細部（ABC）</h3></div>` + (P.abc.length ? P.abc.map((a) => {
       const [o, A, B] = a.points;
       return `<p>${esc(a.tf)}：A 浪 ${fp(o[1])} → ${fp(A[1])}，B 浪反${up ? "彈" : "落"}到 ${fp(B[1])}，C 浪進行中。</p>
@@ -284,6 +284,13 @@
           return `<tr><td>C 浪：${esc(t.name)}${inZone ? "<small class='hit'>在回檔區內</small>" : ""}</td><td class="r">${fp(t.price)}</td></tr>`;
         }).join("")}</tbody></table>`;
     }).join("") : `<p class="sub">較小週期目前沒有進行中的逆向 C 浪可對照。</p>`);
+  }
+
+  function kdLine(P) {
+    const k = P.kd;
+    if (!k) return "";
+    const want = P.dir === 1 ? 1 : -1, ok = k.signal === want;
+    return `<p class="kd-line ${ok ? "ok" : ""}">KD（${esc(P.kd_tf || "")}）：K ${k.k}／D ${k.d}，${esc(k.state)}${ok ? `，<b>與${P.dir === 1 ? "做多" : "做空"}方向一致</b>` : `，等${P.dir === 1 ? "低檔黃金交叉" : "高檔死亡交叉"}`}。123 確認＋KD 配合時進場最穩。</p>`;
   }
 
   // 布局圖解：K 線、波浪標示、三層回檔區、各批價位、失效價、目標與預期路徑，下面附文字解說
@@ -380,7 +387,7 @@
     const up = P.dir === 1;
     let g = "";
     if (P.zone) g += `<rect x="${pl}" y="${Y(P.zone[1])}" width="${Wd - pl - pr}" height="${Math.max(1, Y(P.zone[0]) - Y(P.zone[1]))}" class="z"/>`;
-    lv.forEach((v, i) => { g += `<line x1="${pl}" x2="${Wd - pr}" y1="${Y(v)}" y2="${Y(v)}" class="lv"/><text x="${Wd - pr + 4}" y="${Y(v) + 4}" class="lt">${i + 1} ${fp(v)}</text>`; });
+    lv.forEach((v, i) => { g += `<line x1="${pl}" x2="${X(n - 1)}" y1="${Y(v)}" y2="${Y(v)}" class="lv"/><text x="${Wd - pr + 4}" y="${Y(v) + 4}" class="lt">${i + 1} ${fp(v)}</text>`; });
     B.forEach((b, i) => {
       const [, o, h, l, c] = b, cl = c >= o ? "u" : "d";
       g += `<line x1="${X(i)}" x2="${X(i)}" y1="${Y(h)}" y2="${Y(l)}" class="w ${cl}"/><rect x="${X(i) - cw * 0.35}" y="${Y(Math.max(o, c))}" width="${Math.max(1, cw * 0.7)}" height="${Math.max(1, Math.abs(Y(o) - Y(c)))}" class="b ${cl}"/>`;
@@ -514,7 +521,7 @@
       return;
     }
     $("#wave-meta").textContent = `${W.contract}，${R.name}（${R.session}）。最新 ${R.last.t.replaceAll("-", "/")} 收 ${fp(R.last.c)}${R.partial ? "（最後一根是收盤後的夜盤，交易日尚未結束）" : ""}。圖上虛線為 ${R.threshold} 的轉折。`;
-    box.innerHTML = waveSvg(R);
+    box.innerHTML = waveSvg(R) + (R.kd ? kdSvg(R) : "");
     box.dataset.w = box.clientWidth;
     const [p, a] = R.counts;
     if (!p) { cards.innerHTML = `<div class="wave-card"><p>目前的轉折點不足以判斷波浪，等走勢更明確後會自動產生推算。</p></div>`; return; }
@@ -533,8 +540,28 @@
       <h3>${title}：${esc(c.now)}</h3>
       <div class="kind">${esc(c.pattern)}，轉折門檻 ${esc(c.threshold || "")} <span class="fit">符合度 <i><b style="width:${c.confidence}%"></b></i> ${c.confidence}</span></div>
       <p>${esc(c.text)}</p>
+      ${c.kd ? `<p class="kd-fit">KD 配合：${c.kd.map((x, i) => `<span class="${x.ok ? "ok" : "no"}">${esc(c.points[i][2] === "0" ? "起" : c.points[i][2])} K${Math.round(x.k)}${x.ok ? "✓" : "✗"}</span>`).join(" ")}（${esc(c.kd_fit)} 個轉折符合）${c.kd_div ? `<br><b>${esc(c.kd_div)}</b>` : ""}</p>` : ""}
       <table><tbody>${rows}<tr class="inv"><td>失效價（${esc(c.invalid.note)}）</td><td class="r">${fp(c.invalid.price)}</td></tr></tbody></table>
     </div>`;
+  }
+
+  // KD 副圖：與上方 K 線同樣的根數，20／80 虛線、黃金／死亡交叉標點
+  function kdSvg(R) {
+    // 與上方 K 線圖相同的橫向座標（含右側推演空間），K 棒與 KD 上下對齊
+    const n = R.kd.length, Wd = Math.max(300, Math.round($("#wave-chart").clientWidth - 8)), mob = Wd < 640, Ht = 110, pt = 8, pb = 16;
+    const pl = 6, Rm = mob ? 56 : 72, nb = R.bars.length, fs = Math.max(6, Math.round(nb * (mob ? 0.18 : 0.14)));
+    const cw = (Wd - Rm - pl) / (nb + fs), pr = Rm;
+    const X = (i) => pl + cw * (i + (nb - n) + 0.5), Y = (v) => pt + (100 - v) / 100 * (Ht - pt - pb);
+    const line = (j) => R.kd.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v[j]).toFixed(1)}`).join("");
+    let g = [20, 50, 80].map((v) => `<line x1="${pl}" x2="${X(n - 1)}" y1="${Y(v)}" y2="${Y(v)}" class="${v === 50 ? "mid" : "lv"}"/><text x="${Wd - Rm + 4}" y="${Y(v) + 4}" class="t">${v}</text>`).join("");
+    g += `<path d="${line(1)}" class="d"/><path d="${line(0)}" class="k"/>`;
+    for (let i = 1; i < n; i++) {
+      const [k0, d0] = R.kd[i - 1], [k1, d1] = R.kd[i];
+      if (k0 <= d0 && k1 > d1 && k1 <= 30) g += `<circle cx="${X(i)}" cy="${Y(k1)}" r="3" class="gc"/>`;
+      if (k0 >= d0 && k1 < d1 && k1 >= 70) g += `<circle cx="${X(i)}" cy="${Y(k1)}" r="3" class="dc"/>`;
+    }
+    const nw = R.kd_now || {};
+    return `<svg viewBox="0 0 ${Wd} ${Ht}" class="kd-svg">${g}<text x="${pl + 4}" y="${pt + 10}" class="lab">KD(9,3,3)　K ${nw.k ?? "—"}　D ${nw.d ?? "—"}　${esc(nw.state || "")}</text></svg>`;
   }
 
   // 估計文字寬度並換行（中文字約等於字級寬，英數約 0.6 倍）

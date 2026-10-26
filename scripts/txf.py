@@ -267,6 +267,55 @@ def atr(bars, n=14):
     return out
 
 
+KD_N = 9
+
+
+def kd(bars, n=KD_N):
+    """台灣常用 KD(9,3,3)：RSV = (收 − 9 日最低) ÷ (9 日最高 − 9 日最低) × 100，K = ⅔K' + ⅓RSV，D = ⅔D' + ⅓K。"""
+    K, D, k, d = [], [], 50.0, 50.0
+    for i in range(len(bars)):
+        w = bars[max(0, i - n + 1): i + 1]
+        hi, lo = max(b[2] for b in w), min(b[3] for b in w)
+        rsv = 50.0 if hi == lo else (bars[i][4] - lo) / (hi - lo) * 100
+        k = k * 2 / 3 + rsv / 3
+        d = d * 2 / 3 + k / 3
+        K.append(k)
+        D.append(d)
+    return K, D
+
+
+def kd_turn(K, D, i, kind):
+    """轉折點附近（前 2 根到後 3 根）KD 是否配合：低點要 K ≤ 30 或黃金交叉，高點要 K ≥ 70 或死亡交叉。"""
+    lo_, hi_ = max(1, i - 2), min(len(K) - 1, i + 3)
+    for j in range(lo_, hi_ + 1):
+        if kind == "L" and (K[j] <= 30 or (K[j - 1] <= D[j - 1] and K[j] > D[j])):
+            return True
+        if kind == "H" and (K[j] >= 70 or (K[j - 1] >= D[j - 1] and K[j] < D[j])):
+            return True
+    return False
+
+
+def kd_now(K, D):
+    k, d = K[-1], D[-1]
+    cross_up = any(K[j - 1] <= D[j - 1] and K[j] > D[j] for j in range(max(1, len(K) - 3), len(K)))
+    cross_dn = any(K[j - 1] >= D[j - 1] and K[j] < D[j] for j in range(max(1, len(K) - 3), len(K)))
+    if cross_up and min(K[-4:]) <= 30:
+        st, sig = "低檔黃金交叉", 1
+    elif cross_dn and max(K[-4:]) >= 70:
+        st, sig = "高檔死亡交叉", -1
+    elif k < 20:
+        st, sig = "超賣區（K < 20），等黃金交叉", 0
+    elif k > 80:
+        st, sig = "超買區（K > 80），等死亡交叉", 0
+    elif cross_up:
+        st, sig = "中段黃金交叉", 0
+    elif cross_dn:
+        st, sig = "中段死亡交叉", 0
+    else:
+        st, sig = ("K 在 D 之上" if k > d else "K 在 D 之下"), 0
+    return {"k": round(k, 1), "d": round(d, 1), "state": st, "signal": sig}
+
+
 def zigzag(bars, mult):
     """以 ATR 倍數為反轉門檻找轉折。回傳 (確認的轉折 [(i, price, 'H'/'L')], 目前延伸中的極值)。"""
     a = atr(bars)
@@ -428,6 +477,20 @@ def candidates(piv, cur):
     return out
 
 
+def kd_divergence(c, piv, K):
+    """第 5 浪（或 C 浪）價格再創新高（低），K 值卻比第 3 浪（A 浪）低（高）：背離。"""
+    s, k, d = c["s"], c["k"], c["d"]
+    if c["kind"] == "impulse" and k == 5:
+        a, b, name = piv[s + 3], piv[s + 5], ("第 5 浪", "第 3 浪")
+    elif c["kind"] == "zigzag" and k == 3:
+        a, b, name = piv[s + 1], piv[s + 3], ("C 浪", "A 浪")
+    else:
+        return None
+    if (b[1] - a[1]) * d > 0 and (K[b[0]] - K[a[0]]) * d < 0:
+        return f"{name[0]}價格{'創高' if d == 1 else '創低'}，但 KD 的 K 值（{K[b[0]]:.0f}）{'低於' if d == 1 else '高於'} {name[1]}（{K[a[0]]:.0f}），出現{'頂' if d == 1 else '底'}背離"
+    return None
+
+
 def project(c, piv, last_close):
     """進行中波段的目標價與失效價（實際價格）。"""
     s, k, d = c["s"], c["k"], c["d"]
@@ -522,13 +585,22 @@ def analyze(bars_map: dict, tf: str):
     NDP = 0 if abs(last_close) >= 1000 else 2
     fmt = (lambda k: k.replace("-", "/")) if tf == "D" else (lambda k: k[5:].replace("-", "/"))
     times = [fmt(b[0]) for b in bars]
-    # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論
+    K, D = kd(bars)
+    # 用三種轉折門檻（不同波浪級數）各自數浪，再挑分數最高的兩種不同結論；
+    # 各轉折點的 KD 配合程度（低點 K ≤ 30 或黃金交叉、高點 K ≥ 70 或死亡交叉）也列入分數
     pool = []
     for mult in MULTS[tf]:
         piv, cur = zigzag(bars, mult)
         if len(piv) < 4:
             continue
         for c in candidates(piv, cur):
+            pts = [piv[c["s"] + j] for j in range(c["k"] + 1)]
+            ok = [kd_turn(K, D, i, t) for i, _p, t in pts]
+            c["kd_ok"] = ok
+            c["score"] += 0.12 * (sum(ok) / len(ok) - 0.5)
+            c["kd_div"] = kd_divergence(c, piv, K)
+            if c["kd_div"]:
+                c["score"] += 0.05
             pool.append((c["score"], mult, piv, cur, c))
     pool.sort(key=lambda t: -t[0])
     counts, seen, prim = [], set(), None
@@ -546,6 +618,9 @@ def analyze(bars_map: dict, tf: str):
             "points": [[bars[piv[c["s"] + j][0]][0], rp(piv[c["s"] + j][1]), lab[j]]
                        for j in range(c["k"] + 1)],
             "targets": targets, "invalid": inv,
+            "kd": [{"k": round(K[piv[c["s"] + j][0]], 1), "ok": c["kd_ok"][j]} for j in range(c["k"] + 1)],
+            "kd_fit": f'{sum(c["kd_ok"])}/{len(c["kd_ok"])}',
+            "kd_div": c["kd_div"],
         })
         if prim is None:
             prim = (mult, piv, cur)
@@ -574,6 +649,8 @@ def analyze(bars_map: dict, tf: str):
         "pivots": [[bars[i][0], rp(p), t] for i, p, t in piv if bars[i][0] >= first]
                   + ([[bars[cur[0]][0], rp(cur[1]), "cur"]] if cur else []),
         "counts": counts,
+        "kd_now": kd_now(K, D),
+        "kd": [[round(K[i], 1), round(D[i], 1)] for i in range(start_i, len(bars))],
     }
 
 

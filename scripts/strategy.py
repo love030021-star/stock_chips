@@ -374,6 +374,8 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
         elif major and P["dir"] and major["dir"]:
             P["vs_major"] = ("順著日線" if P["dir"] == major["dir"] else "逆著日線") + major["trend"]
         P["abc"] = abc_detail(W, T["d"], tf) if T["d"] else []
+        P["kd"] = (W.get(et) or {}).get("kd_now")
+        P["kd_tf"] = TFN[et]
         hb = bars_by_tf.get(et) or {}
         if not T["d"] or P.get("phase") != "correct":
             P["signal"] = {"ok": False, "state": "trend",
