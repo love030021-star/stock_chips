@@ -459,16 +459,16 @@ def significance(piv, s, d):
     return sum(1 for q in prev if p <= q) / len(prev)
 
 
+# 價格刻度：False = 算術（點數，預設）；True = 半對數（漲跌幅）
+LOG = False
+
+
 def L(p):
-    """半對數（semi-log）：波浪比例、回檔、延伸都用對數價格計算，等於用漲跌幅衡量。"""
-    return math.log(p) if p > 0 else p
+    return math.log(p) if LOG and p > 0 else p
 
 
 def E(v):
     return math.exp(v) if LOG else v
-
-
-LOG = True
 
 
 def candidates(piv, cur):
@@ -521,7 +521,7 @@ def kd_divergence(c, piv, K):
 def project(c, piv, last_close):
     """進行中波段的目標價與失效價（實際價格）。"""
     s, k, d = c["s"], c["k"], c["d"]
-    x = [L(piv[s + j][1]) * d for j in range(k + 1)]   # 半對數
+    x = [L(piv[s + j][1]) * d for j in range(k + 1)]
     T = []
     up = d == 1
     if c["kind"] == "impulse":
@@ -559,6 +559,8 @@ def project(c, piv, last_close):
     cur_n = L(last_close) * d
     targets = []
     for name, v in T:
+        if E(v * d) <= abs(last_close) * 0.05:   # 大幅下跌的個股，算術延伸可能算到 0 以下，略過
+            continue
         reached = (v - cur_n) * nd <= 0
         targets.append({"name": name, "price": rp(E(v * d)), "reached": reached})
     targets.sort(key=lambda t: t["price"] * d * nd)

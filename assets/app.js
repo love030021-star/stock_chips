@@ -10,8 +10,9 @@
   const fmt = (n, d = 0) => n == null ? "—" : Number(n).toLocaleString("zh-TW", { minimumFractionDigits: d, maximumFractionDigits: d });
   // 價格：千元以上不顯示小數，以下顯示兩位（原油、櫃買指數）
   const fp = (n, d) => n == null ? "—" : fmt(n, d != null ? d : Math.abs(n) < 1000 ? 2 : 0);
-  const lg = (v) => (v > 0 ? Math.log(v) : v), ul = (v) => (lo0 > 0 ? Math.exp(v) : v);
-  const lo0 = 1;
+  // 價格刻度：算術（若要改半對數，把 LOG 設為 true）
+  const LOG = false;
+  const lg = (v) => (LOG && v > 0 ? Math.log(v) : v), ul = (v) => (LOG ? Math.exp(v) : v);
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
   const getJSON = (u) => fetch(`${u}?v=${Date.now().toString(36)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
@@ -586,7 +587,7 @@
   // 各浪比例說明
   function legNotes(c) {
     const p = c.points, out = [];
-    const len = (i) => Math.abs(lg(p[i][1]) - lg(p[i - 1][1]));   // 半對數：用漲跌幅比較各浪
+    const len = (i) => Math.abs(lg(p[i][1]) - lg(p[i - 1][1]));
     p.forEach((pt, i) => {
       if (i === 0) return;
       const lab = pt[2]; let t = "";
@@ -645,7 +646,6 @@
     const plotR = W_ - Rm;
     const cw = (plotR - L) / (n + fs);
     const X = (i) => L + cw * (i + 0.5);
-    // 半對數價格軸：相同距離代表相同漲跌幅
     const lh = lg(hi), ll = lg(lo);
     const Y = (v) => T + (lh - lg(v)) / (lh - ll) * (H_ - T - B);
     const V = (y) => ul(lh - (y - T) / (H_ - T - B) * (lh - ll));

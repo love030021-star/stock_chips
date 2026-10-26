@@ -102,18 +102,16 @@ def _l(p):
 
 
 def rt(base, other, r):
-    """半對數回檔：自 base 往 other 回 r（用漲跌幅計算）。價格非正時退回線性。"""
-    lb, lo = _l(base), _l(other)
-    if lb is None or lo is None:
-        return base - (base - other) * r
-    return math.exp(lb - (lb - lo) * r)
+    """算術回檔：自 base 往 other 回 r（點數）。"""
+    return base - (base - other) * r
 
 
 def lgx(base, a, b, m):
-    """半對數延伸：自 base 延伸 a→b 這段漲跌幅的 m 倍。"""
-    lb, la, lbb = _l(base), _l(a), _l(b)
-    if None in (lb, la, lbb):
-        return base + (b - a) * m
+    """算術延伸：自 base 延伸 a→b 這段的 m 倍。大幅下跌時會算到接近 0 或負值，才改用等比例延伸。"""
+    lin = base + (b - a) * m
+    la, lbb, lb = _l(a), _l(b), _l(base)
+    if lin > base * 0.15 or None in (la, lbb, lb):
+        return lin
     return math.exp(lb + (lbb - la) * m)
 
 
@@ -132,7 +130,7 @@ def plan_from(T):
            "side": "做多" if up else "做空", "atr": r10(atr) if STEP < 1 else round(atr)}
 
     def lv(base, other, label):
-        """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2（半對數）。"""
+        """回檔（反彈）三層：強勢回檔、回檔滿足 1、回檔滿足 2。"""
         # 網站上不公開切割比例：只輸出層級、價位與依據的走勢
         return [{"tier": tn, "price": r10(rt(base, other, r)), "label": f"依{label}"}
                 for tn, rs in TIERS for r in rs]
