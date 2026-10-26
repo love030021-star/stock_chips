@@ -678,6 +678,41 @@ def analyze(bars_map: dict, tf: str):
     }
 
 
+def merge_tv(root: Path, store: Path):
+    """期交所抓不到時，用 TradingView 的 TAIFEX:TXF1!（data/store/tv/TAIFEX_TXF1_*.json）補進日 K 與分 K。
+    日 K 以交易日為準：15:00 開始的夜盤算下一個交易日。"""
+    tvd = root / "data" / "store" / "tv"
+    p = tvd / "TAIFEX_TXF1_1D.json"
+    if p.exists():
+        daily = _load(store / "daily_full.json", {})
+        n = 0
+        for t, o, h, l, c in json.loads(p.read_text(encoding="utf-8")):
+            dt = datetime.fromtimestamp(t, TPE)
+            if dt.hour >= 14:
+                dt += timedelta(days=1)
+            while dt.weekday() >= 5:
+                dt += timedelta(days=1)
+            k = dt.strftime("%Y-%m-%d")
+            old = daily.get(k)
+            daily[k] = [o, h, l, c, old[4] if old else 0, old[5] if old and len(old) > 5 else None]
+            n += 1
+        keys = sorted(daily)[-DAILY_KEEP:]
+        _dump(store / "daily_full.json", {k: daily[k] for k in keys})
+        log(f"TradingView 日 K 併入 {n} 根，最新 {keys[-1]}")
+    for tf, (iv, fn, keep) in INTRADAY.items():
+        q = tvd / f"TAIFEX_TXF1_{ {5: '5m', 30: '30m', 60: '1h'}[iv] }.json"
+        if not q.exists():
+            continue
+        data = _load(store / fn, {})
+        for t, o, h, l, c in json.loads(q.read_text(encoding="utf-8")):
+            k = datetime.fromtimestamp(t, TPE).strftime("%Y-%m-%d %H:%M")
+            old = data.get(k)
+            data[k] = [o, h, l, c, old[4] if old else 0]
+        keys = sorted(data)[-keep:]
+        _dump(store / fn, {k: data[k] for k in keys})
+        log(f"TradingView {iv} 分 K 併入，最新 {keys[-1]}")
+
+
 def run(root: Path, fetch=True):
     store = root / "data" / "store" / "txf"
     today = datetime.now(TPE).date()
@@ -687,6 +722,10 @@ def run(root: Path, fetch=True):
                 fn(store, today)
             except Exception as e:  # noqa: BLE001
                 log(fn.__name__, "失敗：", e)
+    try:
+        merge_tv(root, store)
+    except Exception as e:  # noqa: BLE001
+        log("TradingView 併入失敗：", e)
     out = {"generated_at": datetime.now(TPE).isoformat(timespec="minutes"), "contract": "臺股期貨（TX）近月"}
     for tf, fn in (("D", None), ("H", "h60.json"), ("M30", "m30.json"), ("M5", "m5.json")):
         res = analyze(daily_with_night(store) if tf == "D" else _load(store / fn, {}), tf)
