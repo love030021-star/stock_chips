@@ -9,10 +9,9 @@ from datetime import datetime, timedelta, timezone
 import markets
 
 TPE = timezone(timedelta(hours=8))
-SYMS = {"MNQ": "MNQ=F", "GOLD": "GC=F", "BRENT": "BZ=F"}
 
 
-CNBC = {"MNQ": "@MNQ.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
+CNBC = {"MNQ": "@NQ.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
 
 
 def cnbc(q, err):
@@ -41,24 +40,6 @@ def cnbc(q, err):
 
 def main(out):
     q, err = {}, {}
-    for mid, sym in SYMS.items():
-        try:
-            j = markets._yahoo_json(sym, {"interval": "1m", "range": "1d", "includePrePost": "true"})
-            r = j["chart"]["result"][0]
-            meta = r["meta"]
-            closes = r["indicators"]["quote"][0]["close"]
-            ts = r.get("timestamp") or []
-            px, t = meta.get("regularMarketPrice"), meta.get("regularMarketTime")
-            for i in range(len(closes) - 1, -1, -1):
-                if closes[i] is not None:
-                    if ts[i] >= (t or 0):
-                        px, t = closes[i], ts[i]
-                    break
-            prev = meta.get("chartPreviousClose") or meta.get("previousClose")
-            q[mid] = {"px": round(px, 2), "chg": round((px / prev - 1) * 100, 2) if prev else None,
-                      "t": datetime.fromtimestamp(t, TPE).strftime("%m/%d %H:%M")}
-        except Exception as e:  # noqa: BLE001
-            err[mid] = str(e)[:300]
     cnbc(q, err)
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"at": datetime.now(TPE).strftime("%Y-%m-%d %H:%M"), "q": q, "err": err}, f, ensure_ascii=False)
