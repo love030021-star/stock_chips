@@ -12,8 +12,35 @@ TPE = timezone(timedelta(hours=8))
 SYMS = {"MNQ": "MNQ=F", "GOLD": "GC=F", "BRENT": "BZ=F"}
 
 
+CNBC = {"MNQ": "@MNQ.1", "GOLD": "@GC.1", "BRENT": "@LCO.1"}
+
+
+def cnbc(q, err):
+    url = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+    syms = "|".join(CNBC[m] for m in CNBC if m not in q)
+    if not syms:
+        return
+    try:
+        j = markets._get(url, {"symbols": syms, "requestMethod": "itv", "noform": "1", "partnerId": "2",
+                               "fund": "1", "exthrs": "1", "output": "json"}, tries=2).json()
+        rows = j["FormattedQuoteResult"]["FormattedQuote"]
+        for mid, sym in CNBC.items():
+            for r in rows:
+                if r.get("symbol") == sym and r.get("last"):
+                    px = float(str(r["last"]).replace(",", ""))
+                    chg = r.get("change_pct", "").replace("%", "").replace("+", "")
+                    t = r.get("last_time") or ""
+                    try:
+                        t = datetime.fromisoformat(t.replace("Z", "+00:00")[:25]).astimezone(TPE).strftime("%m/%d %H:%M")
+                    except ValueError:
+                        t = datetime.now(TPE).strftime("%m/%d %H:%M")
+                    q[mid] = {"px": px, "chg": float(chg) if chg not in ("", "UNCH") else 0.0, "t": t}
+    except Exception as e:  # noqa: BLE001
+        err["cnbc"] = str(e)[:300]
+
+
 def main(out):
-    q = {}
+    q, err = {}, {}
     for mid, sym in SYMS.items():
         try:
             j = markets._yahoo_json(sym, {"interval": "1m", "range": "1d", "includePrePost": "true"})
@@ -31,10 +58,11 @@ def main(out):
             q[mid] = {"px": round(px, 2), "chg": round((px / prev - 1) * 100, 2) if prev else None,
                       "t": datetime.fromtimestamp(t, TPE).strftime("%m/%d %H:%M")}
         except Exception as e:  # noqa: BLE001
-            print(mid, "失敗：", e)
+            err[mid] = str(e)[:300]
+    cnbc(q, err)
     with open(out, "w", encoding="utf-8") as f:
-        json.dump({"at": datetime.now(TPE).strftime("%Y-%m-%d %H:%M"), "q": q}, f, ensure_ascii=False)
-    print(q)
+        json.dump({"at": datetime.now(TPE).strftime("%Y-%m-%d %H:%M"), "q": q, "err": err}, f, ensure_ascii=False)
+    print(q, err)
 
 
 if __name__ == "__main__":
