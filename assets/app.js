@@ -92,13 +92,13 @@
       return;
     }
     if (LIVE.px == null) {
-      el.innerHTML = LIVE.src ? `<span class="dot"></span>連線中…（${esc(LIVE.src)}）` : `<span class="dot off"></span>${esc(LIVE.msg || "")}`;
+      el.innerHTML = LIVE.src ? `<span class="dot"></span>連線中…` : `<span class="dot off"></span>${esc(LIVE.msg || "")}`;
       el.className = "live";
       return;
     }
     const c = LIVE.chg;
     el.className = "live on";
-    el.innerHTML = `<span class="dot"></span><b>${LIVE.stale ? "最新" : "即時"} ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}・${esc(LIVE.src)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
+    el.innerHTML = `<span class="dot"></span><b>${LIVE.stale ? "最新" : "即時"} ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
   }
   // TradingView 官方報價小工具（即時跳動，直接連你的 TV 商品）
   // 期交所授權限制：CME、COMEX、ICE 期貨不能嵌入網頁，改用 TradingView 上同標的的現貨報價看即時方向（與期貨有價差）
