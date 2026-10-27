@@ -203,7 +203,7 @@
       open();
     } else if (id === "TWII" || id === "TPEX") {
       LIVE.src = "live";
-      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"]);
+      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"], 1000);
     } else if (!id.startsWith("S:") && id !== "TX" && id !== "TWII" && id !== "TPEX") {
       // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
       LIVE.src = "";
