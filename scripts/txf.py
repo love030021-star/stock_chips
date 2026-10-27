@@ -679,12 +679,14 @@ def analyze(bars_map: dict, tf: str):
 
 
 def merge_tv(root: Path, store: Path):
-    """期交所抓不到時，用 TradingView 的 TAIFEX:TXF1!（data/store/tv/TAIFEX_TXF1_*.json）補進日 K 與分 K。
+    """期交所資料還沒出來的時段（盤中、夜盤），用 TradingView 的 TAIFEX:TXF1!（data/store/tv/TAIFEX_TXF1_*.json）補進日 K 與分 K。
     日 K 以交易日為準：15:00 開始的夜盤算下一個交易日。"""
     tvd = root / "data" / "store" / "tv"
     p = tvd / "TAIFEX_TXF1_1D.json"
     if p.exists():
         daily = _load(store / "daily_full.json", {})
+        off = max([k for k, v in daily.items() if len(v) < 6 or v[5] != "tv"] or [""])
+        daily = {k: v for k, v in daily.items() if k <= off or (len(v) > 5 and v[5] == "tv")}
         n = 0
         for t, o, h, l, c in json.loads(p.read_text(encoding="utf-8")):
             dt = datetime.fromtimestamp(t, TPE)
@@ -693,8 +695,9 @@ def merge_tv(root: Path, store: Path):
             while dt.weekday() >= 5:
                 dt += timedelta(days=1)
             k = dt.strftime("%Y-%m-%d")
-            old = daily.get(k)
-            daily[k] = [o, h, l, c, old[4] if old else 0, old[5] if old and len(old) > 5 else None]
+            if k <= off:
+                continue                      # 期交所官方資料已涵蓋的日子不動
+            daily[k] = [o, h, l, c, 0, "tv"]
             n += 1
         keys = sorted(daily)[-DAILY_KEEP:]
         _dump(store / "daily_full.json", {k: daily[k] for k in keys})
@@ -704,10 +707,12 @@ def merge_tv(root: Path, store: Path):
         if not q.exists():
             continue
         data = _load(store / fn, {})
+        off = max([k for k, v in data.items() if len(v) < 6] or [""])
         for t, o, h, l, c in json.loads(q.read_text(encoding="utf-8")):
             k = datetime.fromtimestamp(t, TPE).strftime("%Y-%m-%d %H:%M")
-            old = data.get(k)
-            data[k] = [o, h, l, c, old[4] if old else 0]
+            if k <= off:
+                continue                      # 期交所官方資料已涵蓋的時段不動
+            data[k] = [o, h, l, c, 0, "tv"]
         keys = sorted(data)[-keep:]
         _dump(store / fn, {k: data[k] for k in keys})
         log(f"TradingView {iv} 分 K 併入，最新 {keys[-1]}")
