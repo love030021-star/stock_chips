@@ -193,7 +193,9 @@
       const tpe = new Date(x.at + 8 * 3600e3), day = tpe.toISOString().slice(0, 10);
       // 前一日收盤：日線最後一根若是今天（台指期 15:00 後的夜盤算下一個交易日）就取前一根
       const td = id === "TX" && tpe.getUTCHours() >= 15 ? new Date(tpe.getTime() + 86400e3).toISOString().slice(0, 10) : day;
-      const prev = last ? (String(last[0]).slice(0, 10) >= td && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
+      // TradingView 警示在 t 後面附上前一日收盤（期貨即結算價）「時間|前收」，有就照 TradingView 的算法
+      const pc = parseFloat(String(x.t || "").split("|")[1]);
+      const prev = isFinite(pc) && pc > 0 ? pc : last ? (String(last[0]).slice(0, 10) >= td && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
       return { px: x.px, chg: prev ? +((x.px / prev - 1) * 100).toFixed(2) : null,
         d: day.replace(/-/g, ""), t: tpe.toISOString().slice(11, 19) };
     }, 5000);
@@ -276,8 +278,7 @@
         liveDraw(true);
       };
       showTX(CACHE.TX && CACHE.TX.W);
-      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx, 5000);
-      LIVE.timer3 = pollTVQ("TX");
+      LIVE.timer2 = pollTVQ("TX");   // 台指期價格只用你 TradingView 推來的資料
       const pollTX = async () => {
         const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         if (!w || LIVE.mkt !== "TX") return;
