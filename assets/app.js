@@ -184,12 +184,16 @@
   function pollTVQ(id) {
     return pollWorker(id, "/tvq", (j) => {
       const x = j && j[id];
-      if (!x || !isFinite(x.px) || Date.now() - x.at > 10 * 60e3) return null;
+      if (!x || !isFinite(x.px)) return null;
       const w = CACHE[id] && CACHE[id].W, D = w && w.D && w.D.bars ? w.D.bars : [];
+      // 收盤後警示不再推送，最後一筆仍是最新成交價；只有每小時資料比它新時才改用每小時資料
+      const R = w && (w.M5 || w.H), hT = R && R.last ? Date.parse(String(R.last.t).replace(" ", "T") + ":00+08:00") : 0;
+      if (x.at < hT || Date.now() - x.at > 3 * 86400e3) return null;
       const last = D.length ? D[D.length - 1] : null;
       const tpe = new Date(x.at + 8 * 3600e3), day = tpe.toISOString().slice(0, 10);
-      // 前一日收盤：日線最後一根若是今天就取前一根
-      const prev = last ? (String(last[0]).slice(0, 10) === day && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
+      // 前一日收盤：日線最後一根若是今天（台指期 15:00 後的夜盤算下一個交易日）就取前一根
+      const td = id === "TX" && tpe.getUTCHours() >= 15 ? new Date(tpe.getTime() + 86400e3).toISOString().slice(0, 10) : day;
+      const prev = last ? (String(last[0]).slice(0, 10) >= td && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
       return { px: x.px, chg: prev ? +((x.px / prev - 1) * 100).toFixed(2) : null,
         d: day.replace(/-/g, ""), t: tpe.toISOString().slice(11, 19) };
     }, 5000);
