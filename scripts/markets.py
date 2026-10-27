@@ -29,6 +29,8 @@ MARKETS = [
      "pt": {"點數": 1}, "unit": "點"},
     {"id": "TPEX", "name": "櫃買指數", "tpex": True, "tv": "TPEX_IX0043", "session": "現貨盤",
      "pt": {"點數": 1}, "unit": "點"},
+    {"id": "00631L", "name": "台灣50正2（00631L）", "tv": "TWSE_00631L",
+     "session": "現貨盤", "pt": {"股數（1 張 = 1000 股）": 1000}, "unit": "元"},
     {"id": "MNQ", "name": "小娜（微型那斯達克 MNQ）", "yahoo": "MNQ=F", "tv": "CME_MINI_MNQ1", "session": "CME 全時段",
      "pt": {"MNQ（美元）": 2, "NQ（美元）": 20}, "unit": "美元"},
     {"id": "GOLD", "name": "1oz 黃金（1OZ）", "yahoo": "1OZ=F", "tv": "COMEX_1OZ1", "daily_from_60m": True, "session": "CME 全時段",

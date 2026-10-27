@@ -124,7 +124,7 @@
     box.firstChild.appendChild(sc);
   }
   // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
-  const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
+  const CD_QUOTE = ["MNQ", "GOLD", "BRENT", "00631L"];
   function nextTpe(fn) {
     const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
     return fn(tpe, now);
