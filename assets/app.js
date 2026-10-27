@@ -192,7 +192,7 @@
       const prev = last ? (String(last[0]).slice(0, 10) === day && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
       return { px: x.px, chg: prev ? +((x.px / prev - 1) * 100).toFixed(2) : null,
         d: day.replace(/-/g, ""), t: tpe.toISOString().slice(11, 19) };
-    }, 10000);
+    }, 5000);
   }
   function liveStart(id) {
     liveStop();
