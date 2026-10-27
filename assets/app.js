@@ -125,7 +125,7 @@
     box.firstChild.appendChild(sc);
   }
   // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
-  const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
+  const CD_QUOTE = ["MNQ", "YM", "GOLD", "BRENT"];
   function nextTpe(fn) {
     const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
     return fn(tpe, now);
@@ -180,7 +180,7 @@
     return setInterval(go, ms);
   }
   // 你 TradingView 警示每分鐘推到 Worker 的價格（/tvq）；超過 10 分鐘沒新價就不採用，改回每小時資料
-  const TVQ_IDS = ["MNQ", "GOLD", "BRENT", "TX"];
+  const TVQ_IDS = ["MNQ", "YM", "GOLD", "BRENT", "TX"];
   function pollTVQ(id) {
     return pollWorker(id, "/tvq", (j) => {
       const x = j && j[id];

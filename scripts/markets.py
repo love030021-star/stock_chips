@@ -33,6 +33,8 @@ MARKETS = [
      "session": "現貨盤", "pt": {"股數（1 張 = 1000 股）": 1000}, "unit": "元"},
     {"id": "MNQ", "name": "小娜（微型那斯達克 MNQ）", "yahoo": "MNQ=F", "tv": "CME_MINI_MNQ1", "session": "CME 全時段",
      "pt": {"MNQ（美元）": 2, "NQ（美元）": 20}, "unit": "美元"},
+    {"id": "YM", "name": "小道瓊（E-mini 道瓊 YM）", "yahoo": "YM=F", "tv": "CBOT_MINI_YM1", "session": "CBOT 全時段",
+     "pt": {"YM（美元）": 5, "MYM（美元）": 0.5}, "unit": "美元"},
     {"id": "GOLD", "name": "1oz 黃金（1OZ）", "yahoo": "1OZ=F", "tv": "COMEX_1OZ1", "daily_from_60m": True, "session": "CME 全時段",
      "pt": {"1OZ（美元）": 1, "MGC 10oz（美元）": 10}, "unit": "美元"},
     {"id": "BRENT", "name": "布蘭特原油（BZ）", "yahoo": "BZ=F", "tv": "ICEEUR_BRN1", "session": "全時段",
