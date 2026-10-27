@@ -146,7 +146,7 @@
       return b.getTime() - 8 * 3600e3 - now;
     });
   }
-  const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
+  const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return s === 0 ? "更新中" : (h ? `${h} 小時 ` : "") + `${m} 分 ${String(x).padStart(2, "0")} 秒`; };
   function cdTick() {
     const el = $("#cd"), id = state.mkt;
     if (!el) return;
@@ -237,8 +237,32 @@
       };
       pollQ();
       LIVE.timer = setInterval(() => { poll(); pollQ(); }, 60000);
+    } else if (id === "TX") {
+      // 台指期：每小時更新（盤中用 TradingView TXF1!，收盤後以期交所資料為準）
+      LIVE.src = ""; LIVE.stale = true;
+      const showTX = (w) => {
+        const R = w && (w.M5 || w.H || w.D);
+        if (!R || !R.last) return;
+        const D = w.D && w.D.bars ? w.D.bars : [];
+        const prev = D.length > 1 ? D[D.length - 2][4] : null;
+        LIVE.px = R.last.c; LIVE.chg = prev ? (R.last.c / prev - 1) * 100 : null;
+        LIVE.t = String(R.last.t).slice(5).replace("-", "/");
+        liveDraw(true);
+      };
+      showTX(CACHE.TX && CACHE.TX.W);
+      const pollTX = async () => {
+        const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
+        if (!w || LIVE.mkt !== "TX") return;
+        const old = CACHE.TX && CACHE.TX.W;
+        if (!old || w.generated_at !== old.generated_at) {
+          CACHE.TX = { W: w, S: st };
+          if (state.mkt === "TX") { W = w; SP = null; renderWave(); renderStrategy(st); }
+        }
+        showTX(w);
+      };
+      LIVE.timer = setInterval(pollTX, 60000);
     } else {
-      LIVE.msg = "這個商品沒有可直接取得的免費即時報價，以下為每日更新的資料。";
+      LIVE.msg = "";
     }
     liveDraw(true);
     cdTick();
