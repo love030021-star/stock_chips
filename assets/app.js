@@ -203,7 +203,7 @@
       open();
     } else if (id === "TWII" || id === "TPEX") {
       LIVE.src = "live";
-      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"], 1000);
+      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"], 5000);
     } else if (!id.startsWith("S:") && id !== "TX" && id !== "TWII" && id !== "TPEX") {
       // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
       LIVE.src = "";
@@ -254,7 +254,7 @@
         liveDraw(true);
       };
       showTX(CACHE.TX && CACHE.TX.W);
-      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx, 1000);   // 台指期每秒
+      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx, 5000);
       const pollTX = async () => {
         const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         if (!w || LIVE.mkt !== "TX") return;
