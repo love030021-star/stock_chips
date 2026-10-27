@@ -162,18 +162,21 @@
   // 自己的 Cloudflare Worker（worker/quote.js）：替網頁抓期交所、證交所即時行情
   const QW = "https://tw-quote.love030021.workers.dev";
   const fmtT = (d, t) => { t = String(t || "").replace(/:/g, "").padStart(6, "0"); return `${String(d).slice(4, 6)}/${String(d).slice(6, 8)} ${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}`; };
-  function pollWorker(id, path, pick) {
+  function pollWorker(id, path, pick, ms = 5000) {
+    let busy = false;
     const go = async () => {
+      if (document.hidden || busy) return;     // 畫面沒在看就不抓，省額度
+      busy = true;
       try {
         const j = await (await fetch(`${QW}${path}?_=${Date.now()}`)).json();
         const x = pick(j);
         if (!x || LIVE.mkt !== id) return;
         LIVE.qOk = true; LIVE.stale = false; LIVE.px = x.px; LIVE.chg = x.chg; LIVE.t = fmtT(x.d, x.t);
         liveDraw(true);
-      } catch (e) { /* 略過 */ }
+      } catch (e) { /* 略過 */ } finally { busy = false; }
     };
     go();
-    return setInterval(go, 5000);
+    return setInterval(go, ms);
   }
   function liveStart(id) {
     liveStop();
@@ -251,7 +254,7 @@
         liveDraw(true);
       };
       showTX(CACHE.TX && CACHE.TX.W);
-      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx);
+      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx, 1000);   // 台指期每秒
       const pollTX = async () => {
         const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         if (!w || LIVE.mkt !== "TX") return;
