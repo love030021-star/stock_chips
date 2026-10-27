@@ -65,6 +65,7 @@
   function liveStop() {
     if (LIVE.ws) { try { LIVE.ws.onclose = null; LIVE.ws.close(); } catch (e) { /* 略過 */ } LIVE.ws = null; }
     if (LIVE.timer) { clearInterval(LIVE.timer); LIVE.timer = null; }
+    if (LIVE.timer2) { clearInterval(LIVE.timer2); LIVE.timer2 = null; }
     LIVE.px = null;
   }
   function liveZone(px) {
@@ -104,7 +105,6 @@
   // 期交所授權限制：CME、COMEX、ICE 期貨不能嵌入網頁，改用 TradingView 上同標的的現貨報價看即時方向（與期貨有價差）
   const TVSYM = {
     JP225: ["CMCMARKETS:JAPAN225Z2026", ""],
-    TPEX: ["TPEX:IX0043", ""],
   };
   // 期貨不能嵌入即時報價框，改讀每 5 分鐘更新一次的報價（live 分支）
   const LIVEQ_URL = "https://raw.githubusercontent.com/love030021-star/stock_chips/live/live.json";
@@ -124,7 +124,7 @@
     box.firstChild.appendChild(sc);
   }
   // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
-  const CD_QUOTE = ["MNQ", "GOLD", "BRENT", "TX"];
+  const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
   function nextTpe(fn) {
     const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
     return fn(tpe, now);
@@ -148,7 +148,7 @@
   }
   const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return s === 0 ? "更新中" : (h ? `${h} 小時 ` : "") + `${m} 分 ${String(x).padStart(2, "0")} 秒`; };
   // 沒辦法在網頁內即時跳動的商品，附上官方即時行情的連結
-  const LIVE_LINK = { TX: ["https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/", "開期交所即時行情"] };
+  const LIVE_LINK = {};
   function cdTick() {
     const el = $("#cd"), id = state.mkt;
     if (!el) return;
@@ -159,6 +159,22 @@
     el.innerHTML = parts.join("　");
   }
   setInterval(cdTick, 1000);
+  // 自己的 Cloudflare Worker（worker/quote.js）：替網頁抓期交所、證交所即時行情
+  const QW = "https://tw-quote.love030021.workers.dev";
+  const fmtT = (d, t) => { t = String(t || "").replace(/:/g, "").padStart(6, "0"); return `${String(d).slice(4, 6)}/${String(d).slice(6, 8)} ${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}`; };
+  function pollWorker(id, path, pick) {
+    const go = async () => {
+      try {
+        const j = await (await fetch(`${QW}${path}?_=${Date.now()}`)).json();
+        const x = pick(j);
+        if (!x || LIVE.mkt !== id) return;
+        LIVE.qOk = true; LIVE.stale = false; LIVE.px = x.px; LIVE.chg = x.chg; LIVE.t = fmtT(x.d, x.t);
+        liveDraw(true);
+      } catch (e) { /* 略過 */ }
+    };
+    go();
+    return setInterval(go, 5000);
+  }
   function liveStart(id) {
     liveStop();
     tvQuote(id);
@@ -182,28 +198,10 @@
         ws.onclose = () => { if (LIVE.mkt === "BTC") setTimeout(() => { if (LIVE.mkt === "BTC" && LIVE.ws === ws) open(); }, 3000); };
       };
       open();
-    } else if (id === "TWII") {
-      LIVE.src = "證交所每 5 秒指數";
-      const poll = async () => {
-        try {
-          const r = await fetch(`https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX?response=json&_=${Date.now()}`);
-          const j = await r.json();
-          const rows = (j.data || []).filter((x) => x[1] && x[1] !== "--");
-          if (!rows.length) return;
-          const last = rows[rows.length - 1], first = rows[0];
-          const v = parseFloat(String(last[1]).replace(/,/g, ""));
-          const prev = parseFloat(String(first[1]).replace(/,/g, ""));
-          LIVE.px = v; LIVE.chg = prev ? (v / prev - 1) * 100 : null;
-          const dt = String(j.date || "");
-          const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10).replace(/-/g, "");
-          LIVE.stale = dt !== today;
-          LIVE.t = `${dt.slice(4, 6)}/${dt.slice(6, 8)} ${last[0]}${LIVE.stale ? "（非交易時段）" : ""}`;
-          liveDraw(true);
-        } catch (err) { /* 略過 */ }
-      };
-      poll();
-      LIVE.timer = setInterval(poll, 30000);
-    } else if (!id.startsWith("S:") && id !== "TX") {
+    } else if (id === "TWII" || id === "TPEX") {
+      LIVE.src = "live";
+      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"]);
+    } else if (!id.startsWith("S:") && id !== "TX" && id !== "TWII" && id !== "TPEX") {
       // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
       LIVE.src = "";
       LIVE.stale = true;
@@ -245,7 +243,7 @@
       LIVE.src = ""; LIVE.stale = true;
       const showTX = (w) => {
         const R = w && (w.M5 || w.H || w.D);
-        if (!R || !R.last) return;
+        if (!R || !R.last || LIVE.qOk) return;
         const D = w.D && w.D.bars ? w.D.bars : [];
         const prev = D.length > 1 ? D[D.length - 2][4] : null;
         LIVE.px = R.last.c; LIVE.chg = prev ? (R.last.c / prev - 1) * 100 : null;
@@ -253,6 +251,7 @@
         liveDraw(true);
       };
       showTX(CACHE.TX && CACHE.TX.W);
+      LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx);
       const pollTX = async () => {
         const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         if (!w || LIVE.mkt !== "TX") return;
