@@ -66,6 +66,7 @@
     if (LIVE.ws) { try { LIVE.ws.onclose = null; LIVE.ws.close(); } catch (e) { /* 略過 */ } LIVE.ws = null; }
     if (LIVE.timer) { clearInterval(LIVE.timer); LIVE.timer = null; }
     if (LIVE.timer2) { clearInterval(LIVE.timer2); LIVE.timer2 = null; }
+    if (LIVE.timer3) { clearInterval(LIVE.timer3); LIVE.timer3 = null; }
     LIVE.px = null;
   }
   function liveZone(px) {
@@ -154,7 +155,7 @@
     if (!el) return;
     if (!id || id.startsWith("S:")) { el.textContent = ""; return; }
     const parts = [];
-    parts.push(`${CD_QUOTE.includes(id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
+    parts.push(`${CD_QUOTE.includes(id) && !(LIVE.qOk && LIVE.mkt === id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
     if (LIVE_LINK[id]) parts.push(`<a href="${LIVE_LINK[id][0]}" target="_blank" rel="noopener">${LIVE_LINK[id][1]} ↗</a>`);
     el.innerHTML = parts.join("　");
   }
@@ -177,6 +178,21 @@
     };
     go();
     return setInterval(go, ms);
+  }
+  // 你 TradingView 警示每分鐘推到 Worker 的價格（/tvq）；超過 10 分鐘沒新價就不採用，改回每小時資料
+  const TVQ_IDS = ["MNQ", "GOLD", "BRENT", "TX"];
+  function pollTVQ(id) {
+    return pollWorker(id, "/tvq", (j) => {
+      const x = j && j[id];
+      if (!x || !isFinite(x.px) || Date.now() - x.at > 10 * 60e3) return null;
+      const w = CACHE[id] && CACHE[id].W, D = w && w.D && w.D.bars ? w.D.bars : [];
+      const last = D.length ? D[D.length - 1] : null;
+      const tpe = new Date(x.at + 8 * 3600e3), day = tpe.toISOString().slice(0, 10);
+      // 前一日收盤：日線最後一根若是今天就取前一根
+      const prev = last ? (String(last[0]).slice(0, 10) === day && D.length > 1 ? D[D.length - 2][4] : last[4]) : null;
+      return { px: x.px, chg: prev ? +((x.px / prev - 1) * 100).toFixed(2) : null,
+        d: day.replace(/-/g, ""), t: tpe.toISOString().slice(11, 19) };
+    }, 10000);
   }
   function liveStart(id) {
     liveStop();
@@ -242,6 +258,7 @@
       pollQ();
       LIVE.timer = setInterval(() => { poll(); pollQ(); }, 60000);
       if (id === "00631L") LIVE.timer2 = pollWorker(id, "/otc", (j) => j["00631L"], 5000);   // 證交所即時成交價
+      if (TVQ_IDS.includes(id)) LIVE.timer2 = pollTVQ(id);
     } else if (id === "TX") {
       // 台指期：每小時更新（盤中用 TradingView TXF1!，收盤後以期交所資料為準）
       LIVE.src = ""; LIVE.stale = true;
@@ -256,6 +273,7 @@
       };
       showTX(CACHE.TX && CACHE.TX.W);
       LIVE.timer2 = pollWorker("TX", "/tx", (j) => j.tx, 5000);
+      LIVE.timer3 = pollTVQ("TX");
       const pollTX = async () => {
         const [w, st] = await Promise.all([getJSON("data/wave.json"), getJSON("data/strategy.json")]);
         if (!w || LIVE.mkt !== "TX") return;

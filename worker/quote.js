@@ -3,6 +3,8 @@
 //   GET /tx   台指期近月（依台北時間選日盤或夜盤）＋加權現貨（期交所行情資訊網）
 //   GET /gtf  櫃買現貨（期交所行情資訊網）
 //   GET /otc  櫃買指數、加權指數、00631L（證交所基本市況報導）
+//   POST /hook  你 TradingView 警示的 webhook（只收 TradingView 官方 IP），把價格存進 D1（綁定名稱 DB，資料庫 tw-quotes）
+//   GET /tvq  讀出各商品最新一筆 TradingView 價格 {id:{px,t,at}}
 // 每個來源在同一個 Worker 執行個體內快取 4 秒，不論幾個人同時開網頁，對期交所的請求都不會太密。
 const H = { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" };
 const UA = { "User-Agent": "Mozilla/5.0", "Accept": "application/json" };
@@ -70,10 +72,32 @@ async function otc() {
   });
 }
 
+const TVIP = ["52.89.214.238", "34.212.75.30", "54.218.53.128", "52.32.178.7"];   // TradingView webhook 來源 IP
+
+async function hook(req, env) {
+  if (!TVIP.includes(req.headers.get("CF-Connecting-IP") || "")) return new Response("forbidden", { status: 403 });
+  const b = JSON.parse(await req.text());
+  const px = parseFloat(b.px);
+  if (!b.id || !isFinite(px)) return new Response("bad", { status: 400 });
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS q(id TEXT PRIMARY KEY,px REAL,t TEXT,at INTEGER)").run();
+  await env.DB.prepare("INSERT OR REPLACE INTO q VALUES(?,?,?,?)")
+    .bind(String(b.id).slice(0, 20), px, String(b.t || "").slice(0, 40), Date.now()).run();
+  return new Response("ok", { headers: H });
+}
+
+async function tvq(env) {
+  const r = await env.DB.prepare("SELECT * FROM q").all().catch(() => ({ results: [] }));
+  const o = {};
+  for (const x of r.results || []) o[x.id] = { px: x.px, t: x.t, at: x.at };
+  return o;
+}
+
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     const p = new URL(req.url).pathname;
     try {
+      if (p === "/hook" && req.method === "POST") return await hook(req, env);
+      if (p === "/tvq") return new Response(JSON.stringify(await tvq(env)), { headers: H });
       if (p === "/tx") return new Response(JSON.stringify(await tx()), { headers: H });
       if (p === "/gtf") return new Response(JSON.stringify(await gtf()), { headers: H });
       if (p === "/otc") return new Response(JSON.stringify(await otc()), { headers: H });
