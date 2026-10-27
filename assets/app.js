@@ -147,12 +147,15 @@
     });
   }
   const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return s === 0 ? "更新中" : (h ? `${h} 小時 ` : "") + `${m} 分 ${String(x).padStart(2, "0")} 秒`; };
+  // 沒辦法在網頁內即時跳動的商品，附上官方即時行情的連結
+  const LIVE_LINK = { TX: ["https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/", "開期交所即時行情"] };
   function cdTick() {
     const el = $("#cd"), id = state.mkt;
     if (!el) return;
     if (!id || id.startsWith("S:")) { el.textContent = ""; return; }
     const parts = [];
     parts.push(`${CD_QUOTE.includes(id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
+    if (LIVE_LINK[id]) parts.push(`<a href="${LIVE_LINK[id][0]}" target="_blank" rel="noopener">${LIVE_LINK[id][1]} ↗</a>`);
     el.innerHTML = parts.join("　");
   }
   setInterval(cdTick, 1000);
