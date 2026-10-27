@@ -2,7 +2,7 @@
 // 部署在 https://tw-quote.love030021.workers.dev（Cloudflare 後台的線上編輯器直接貼上這份程式）。
 //   GET /tx   台指期近月（依台北時間選日盤或夜盤）＋加權現貨（期交所行情資訊網）
 //   GET /gtf  櫃買現貨（期交所行情資訊網）
-//   GET /otc  櫃買指數、加權指數（證交所基本市況報導，約每分鐘更新）
+//   GET /otc  櫃買指數、加權指數、00631L（證交所基本市況報導）
 // 每個來源在同一個 Worker 執行個體內快取 4 秒，不論幾個人同時開網頁，對期交所的請求都不會太密。
 const H = { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" };
 const UA = { "User-Agent": "Mozilla/5.0", "Accept": "application/json" };
@@ -58,13 +58,13 @@ async function gtf() {
 
 async function otc() {
   return cached("otc", 4000, async () => {
-    const r = await fetch("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_o00.tw%7Ctse_t00.tw&json=1&delay=0&_=" + Date.now(), { headers: UA });
+    const r = await fetch("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_o00.tw%7Ctse_t00.tw%7Ctse_00631L.tw&json=1&delay=0&_=" + Date.now(), { headers: UA });
     const j = await r.json();
     const out = {};
     for (const m of j.msgArray || []) {
-      const px = parseFloat(m.z), y = parseFloat(m.y);
+      const px = parseFloat(m.z !== "-" ? m.z : (m.b || "").split("_")[0]), y = parseFloat(m.y);   // 沒成交時用最佳買價
       if (!isFinite(px)) continue;
-      out[m.c === "o00" ? "otc" : "twii"] = { px, chg: y ? +((px / y - 1) * 100).toFixed(2) : null, d: m.d, t: m.t };
+      out[m.c === "o00" ? "otc" : m.c === "t00" ? "twii" : m.c] = { px, chg: y ? +((px / y - 1) * 100).toFixed(2) : null, d: m.d, t: m.t };
     }
     return out;
   });

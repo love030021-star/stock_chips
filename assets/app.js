@@ -124,7 +124,7 @@
     box.firstChild.appendChild(sc);
   }
   // 更新倒數：期貨報價每 5 分鐘（GitHub 排程，約晚 1 分鐘）；布局每小時 :34 抓資料、約 :38 重算完成（週一～週六）
-  const CD_QUOTE = ["MNQ", "GOLD", "BRENT", "00631L"];
+  const CD_QUOTE = ["MNQ", "GOLD", "BRENT"];
   function nextTpe(fn) {
     const now = Date.now(), tpe = new Date(now + 8 * 3600e3);   // 用 UTC 欄位當台北時間
     return fn(tpe, now);
@@ -241,6 +241,7 @@
       };
       pollQ();
       LIVE.timer = setInterval(() => { poll(); pollQ(); }, 60000);
+      if (id === "00631L") LIVE.timer2 = pollWorker(id, "/otc", (j) => j["00631L"], 5000);   // 證交所即時成交價
     } else if (id === "TX") {
       // 台指期：每小時更新（盤中用 TradingView TXF1!，收盤後以期交所資料為準）
       LIVE.src = ""; LIVE.stale = true;
