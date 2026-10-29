@@ -352,7 +352,7 @@
     if(id.startsWith('S:')&&!useBroker&&FEED_BASE){$('#tvq').hidden=true;$('#tvq').replaceChildren();LIVE.mkt=id;LIVE.widget=false;LIVE.src='';LIVE.msg='正在查詢交易所成交資料…';LIVE.timer=pollExchangeStock(id);liveDraw(true);cdTick();return;}
     if(!useBroker)tvQuote(id);else{$('#tvq').hidden=true;$('#tvq').replaceChildren();}
     LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !useBroker && !!TVSYM[id]; LIVE.qOk = false;
-    if(useBroker && (BROKER_MARKETS.includes(id)||id.startsWith('S:'))){LIVE.msg='等待群益資料連線；不以舊報價補值';if(id==='TX')LIVE.timer2=pollTVQ('TX');/* 群益斷線時（LIVE.capitalActive=false）改用 TradingView 15 秒推送的近月價格 */liveDraw(true);cdTick();return;}
+    if(useBroker && (BROKER_MARKETS.includes(id)||id.startsWith('S:'))){LIVE.msg='等待群益資料連線；不以舊報價補值';if(TVQ_IDS.includes(id))LIVE.timer2=pollTVQ(id);/* 群益斷線時（LIVE.capitalActive=false）改用 TradingView 15 秒推送的近月價格 */liveDraw(true);cdTick();return;}
     if(useBroker && !['BTC','TWII','TPEX','00631L'].includes(id)){
       LIVE.msg='此商品尚待授權即時行情來源；不顯示舊報價冒充即時';
       if(TVQ_IDS.includes(id))LIVE.timer2=pollTVQ(id);
