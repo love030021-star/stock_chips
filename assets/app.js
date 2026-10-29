@@ -119,7 +119,7 @@
   }
 
   function syncTfButtons() {
-    const m = datedFuture() && !CAPITAL_ONLY ? {tfs:["D"]} : MARKETS.find((x) => x.id === state.mkt) || (state.mkt.startsWith("S:") ? { tfs: CAPITAL_ONLY?["D","H","M30","M5"]:["D"] } : MARKETS[0]);
+    const m = datedFuture() && !CAPITAL_ONLY ? {tfs:["D"]} : MARKETS.find((x) => x.id === state.mkt) || (state.mkt.startsWith("S:") ? { tfs: CAPITAL_ONLY&&usesBrokerMarket(state.mkt)?["D","H","M30","M5"]:["D"] } : MARKETS[0]);
     ["waveTf", "stTf"].forEach((g) => {
       const btns = [...document.querySelectorAll(`[data-group=${g}] button`)];
       btns.forEach((b) => { b.disabled = !m.tfs.includes(b.dataset.v); });
@@ -135,7 +135,7 @@
     if (!q) return;
     const code = (q.match(/\d{4,6}[A-Z]?/) || [""])[0];
     if(CAPITAL_ONLY && code){
-      $('#stk-msg').textContent=`${code}：僅能查看站長已發布的群益商品；此操作不會控制站長的行情訂閱或交易。`;
+      $('#stk-msg').textContent=`${code}：報價優先群益，未接入時查詢證交所公布行情；圖表以K線時間為準。`;
       await showMarket(code==='00631L'?'00631L':'S:'+code);return;
     }
     const hit = STOCKS.find((x) => x.code === code) || STOCKS.find((x) => x.name === q || q.includes(x.name)) || STOCKS.find((x) => x.name.includes(q));
@@ -324,6 +324,23 @@
         d: day.replace(/-/g, ""), t: tpe.toISOString().slice(11, 19), at:x.at };
     }, 5000);
   }
+  function pollExchangeStock(id) {
+    const symbol=id.slice(2),entry=STOCKS.find(x=>x.code===symbol);
+    const market=entry?.m==='上櫃'?'otc':'tse';let busy=false;
+    const poll=async()=>{
+      if(busy||document.hidden||state.mkt!==id)return;busy=true;
+      try{
+        const r=await fetch(`${FEED_BASE}/api/stock-quote?symbol=${encodeURIComponent(symbol)}&market=${market}`,{cache:'no-store',signal:AbortSignal.timeout(7000)});
+        const data=await r.json();if(state.mkt!==id||LIVE.capitalActive)return;
+        if(!r.ok||!data.quote){LIVE.px=null;LIVE.src='';LIVE.msg=data.message||data.error||'交易所尚無可確認的成交資料';liveDraw(true);return;}
+        const q=data.quote;
+        LIVE.px=q.price;LIVE.chg=q.change_pct;LIVE.updatedAt=q.last_trade_at;
+        LIVE.t=`${data.source} · ${q.date} ${q.time}`;LIVE.src=data.source;LIVE.stale=Date.now()-q.last_trade_at>60000;
+        liveDraw(true);
+      }catch(error){if(state.mkt===id){LIVE.px=null;LIVE.src='';LIVE.msg='交易所報價暫時未連線';liveDraw(true);}}
+      finally{busy=false;}
+    };poll();return setInterval(poll,10000);
+  }
   function liveStart(id) {
     liveStop();
     const useBroker=CAPITAL_ONLY&&usesBrokerMarket(id);
@@ -332,6 +349,7 @@
       LIVE.mkt=id;LIVE.widget=false;LIVE.src='';LIVE.msg='等待此月份即時行情連線；下方顯示已公布的歷史K線';LIVE.stale=true;LIVE.qOk=false;
       liveDraw(true);if(latestCapitalFeed)window.dispatchEvent(new CustomEvent('capital-feed',{detail:latestCapitalFeed}));$('#cd').textContent='';return;
     }
+    if(id.startsWith('S:')&&!useBroker&&FEED_BASE){$('#tvq').hidden=true;$('#tvq').replaceChildren();LIVE.mkt=id;LIVE.widget=false;LIVE.src='';LIVE.msg='正在查詢交易所成交資料…';LIVE.timer=pollExchangeStock(id);liveDraw(true);cdTick();return;}
     if(!useBroker)tvQuote(id);else{$('#tvq').hidden=true;$('#tvq').replaceChildren();}
     LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !useBroker && !!TVSYM[id]; LIVE.qOk = false;
     if(useBroker && (BROKER_MARKETS.includes(id)||id.startsWith('S:'))){LIVE.msg='等待群益資料連線；不以舊報價補值';liveDraw(true);cdTick();return;}
@@ -539,7 +557,7 @@
     const note=$('#capital-analysis-info');if(note)note.textContent=text;
     if(!meta.ready)$('#st-meta').textContent=text;
     if(!meta.connected){
-      $('#st-signal').textContent='未連線：進場訊號已停用。';
+      $('#st-signal').textContent=meta.external?'此商品尚未接入即時K線，暫不產生即時進場訊號。':'未連線：進場訊號已停用。';
     }else if(meta.ready&&meta.market_fresh===false){
       $('#st-signal').textContent='報價非近期成交／指數更新：進場訊號已停用，圖表僅供已收K參考。';
     }
@@ -1147,6 +1165,7 @@
 
   load().catch(error=>{if(CAPITAL_ONLY)showAnalysisError(error);else console.error(error);});
 })();
+
 
 
 
