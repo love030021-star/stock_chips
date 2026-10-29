@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css?v=202610272245">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
-<link rel="stylesheet" href="assets/capital-feed.css"></head>
+<link rel="stylesheet" href="assets/capital-feed.css?v=20261029months2"></head>
 <body>
 <div class="notice" role="note">
   本站不是證券或期貨投資顧問，內容是用公開資料依固定規則計算的結果，不構成投資建議。<a href="#disclaimer">完整聲明</a>
@@ -27,7 +27,7 @@
 </nav>
 
 <header class="hero" id="top">
-  <p class="hero-date">台指期分析資料到 <span id="data-date">載入中</span></p>
+  <p class="hero-date">商品分析資料 <span id="data-date">載入中</span></p>
   <h1 class="hero-title"><span>台股</span><span>期貨</span><span>波浪</span><span>籌碼</span><span>試算</span></h1>
   <p class="hero-lede">用台股、期貨與國際盤的真實走勢當教材，一步步練習艾略特波浪、回檔比例、123 法則與 KD 的判讀；每個試算都附上圖解與計算過程，讓你看懂方法、自己判斷。</p>
 </header>
@@ -36,6 +36,11 @@
   <div class="mkt-bar" id="markets">
     <span class="mkt-lab">商品</span>
     <div class="seg-ctl mkt" id="mkt-tabs" role="group" aria-label="商品"></div>
+    <div id="fut-contract" class="fut-contract" hidden>
+      <label for="fut-month">契約月份</label>
+      <select id="fut-month" aria-label="期貨契約月份" aria-describedby="fut-source"></select>
+      <span id="fut-source" class="sub" aria-live="polite"></span>
+    </div>
     <form class="stk-form" id="stk-form" autocomplete="off">
       <input id="stk-in" list="stk-list" inputmode="search" placeholder="個股代號或名稱，如 2330" aria-label="個股代號或名稱">
       <datalist id="stk-list"></datalist>
@@ -144,7 +149,7 @@
 
 
   <section id="sources" class="block prose">
-    <h2>資料來源</h2>
+    <h2>資料來源</h2><p class="sub">台指期貨與小型0050期貨的指定月份，使用<a href="https://www.taifex.com.tw/cht/3/futDailyMarketReport" target="_blank" rel="noopener">期交所各月份日行情</a>；依實際掛牌月份列出選單，每日排程更新。各月份獨立計算，沒有分K時不產生123進場訊號。</p>
     <ul>
       <li>臺灣期貨交易所：台指期每日行情與逐筆成交（日線、5／30／60 分 K）、三大法人選擇權買賣權分計、選擇權大額交易人未沖銷部位、選擇權每日行情</li>
       <li>臺灣證券交易所：加權指數日線與每 5 秒指數（組成 5／30／60 分 K）</li>
@@ -172,6 +177,7 @@
   <p>波浪籌碼日報。行情標示來源時間；分析與籌碼依各區塊資料日期更新。</p>
 </footer>
 
-<script src="assets/public-feed-config.js" defer></script><script src="assets/capital-feed.js" defer></script><script src="assets/app.js?v=20261029q3" defer></script>
+<script src="assets/public-feed-config.js" defer></script><script src="assets/futures-feed.js?v=20261029months2" defer></script><script src="assets/capital-feed.js?v=20261029months2" defer></script><script src="assets/app.js?v=20261029months2" defer></script>
 </body>
 </html>
+
