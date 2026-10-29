@@ -124,13 +124,13 @@
     return CACHE[id];
   }
 
-  const ST_TFS = ["M30", "M5"];
+  const ST_TFS = ["D", "H", "M30", "M5"];
   function syncTfButtons() {
     const m = datedFuture() && !CAPITAL_ONLY ? {tfs:["D"]} : MARKETS.find((x) => x.id === state.mkt) || (state.mkt.startsWith("S:") ? { tfs: CAPITAL_ONLY&&usesBrokerMarket(state.mkt)?["D","H","M30","M5"]:["D"] } : MARKETS[0]);
     ["waveTf", "stTf"].forEach((g) => {
       const btns = [...document.querySelectorAll(`[data-group=${g}] button`)];
       btns.forEach((b) => { b.disabled = !m.tfs.includes(b.dataset.v); });
-      if (g === "stTf") {   // 波段布局只保留 30 分與 5 分
+      if (g === "stTf") {   // 波段布局：日／60／30／5 分
         btns.forEach((b) => { b.hidden = !ST_TFS.includes(b.dataset.v); });
         if (!ST_TFS.includes(state.stTf) || !m.tfs.includes(state.stTf)) state.stTf = ST_TFS.find((t) => m.tfs.includes(t)) || "M30";
       } else if (!m.tfs.includes(state[g])) state[g] = CAPITAL_ONLY ? (m.tfs.includes('M5')?'M5':m.tfs[0]) : "D";
