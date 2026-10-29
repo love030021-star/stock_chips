@@ -353,6 +353,10 @@ def rule123(hbars: dict, d: int, start: str, P: dict, ln: str = "60 分", pn: st
 TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分", "M5": "5 分"}
 
 
+# 布局只找推動浪（1～5 浪），不沿用波浪推算的主要數法
+UNIFY_WITH_WAVE = False
+
+
 def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
     """W：波浪推算結果（含 M5）；bars_by_tf：{"D"/"H"/"M30": {key: [o,h,l,c,...]}}；pt：每點價值。"""
     lw = W.get("M5") or W.get("H") or {}
@@ -366,7 +370,7 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
             continue
         T = daily_trend(bars, tf)
         # 與上方「波浪推算」同一套數浪：主要數法是推動浪就用它的浪點；是修正浪就等修正結束，不另外找推動浪
-        prim = ((W.get(tf) or {}).get("counts") or [None])[0]
+        prim = ((W.get(tf) or {}).get("counts") or [None])[0] if UNIFY_WITH_WAVE else None
         wait_note = None
         if prim and prim.get("kind") == "impulse" and prim.get("d") and len(prim.get("points") or []) >= 2:
             T = dict(T, d=prim["d"], k=len(prim["points"]) - 1, fallback=False,

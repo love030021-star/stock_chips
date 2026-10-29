@@ -124,12 +124,16 @@
     return CACHE[id];
   }
 
+  const ST_TFS = ["M30", "M5"];
   function syncTfButtons() {
     const m = datedFuture() && !CAPITAL_ONLY ? {tfs:["D"]} : MARKETS.find((x) => x.id === state.mkt) || (state.mkt.startsWith("S:") ? { tfs: CAPITAL_ONLY&&usesBrokerMarket(state.mkt)?["D","H","M30","M5"]:["D"] } : MARKETS[0]);
     ["waveTf", "stTf"].forEach((g) => {
       const btns = [...document.querySelectorAll(`[data-group=${g}] button`)];
       btns.forEach((b) => { b.disabled = !m.tfs.includes(b.dataset.v); });
-      if (!m.tfs.includes(state[g])) state[g] = CAPITAL_ONLY ? (m.tfs.includes('M5')?'M5':m.tfs[0]) : "D";
+      if (g === "stTf") {   // 波段布局只保留 30 分與 5 分
+        btns.forEach((b) => { b.hidden = !ST_TFS.includes(b.dataset.v); });
+        if (!ST_TFS.includes(state.stTf) || !m.tfs.includes(state.stTf)) state.stTf = ST_TFS.find((t) => m.tfs.includes(t)) || "M30";
+      } else if (!m.tfs.includes(state[g])) state[g] = CAPITAL_ONLY ? (m.tfs.includes('M5')?'M5':m.tfs[0]) : "D";
       btns.forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === state[g]));
     });
   }
@@ -491,7 +495,7 @@
   async function load() {
     await initFutures();
     if(!CAPITAL_ONLY){
-      $('#wave').hidden=false;
+      $('#wave').hidden=true;   // 只保留波段布局
       $('#chips h2').textContent='台指選擇權籌碼（每日公布，非即時）';
       const note=document.createElement('p');note.id='capital-analysis-info';note.className='sub';
       note.textContent='';
@@ -508,7 +512,7 @@
       (otherMarkets||[]).forEach(m=>MARKETS.push(m));
       const sources=$('#sources');sources.innerHTML='<h2>資料來源</h2><ul><li>台指期、小型0050：優先群益SDK，核對個別月份；報價每2秒讀取。沒有近期成交時顯示最後成交時間。</li><li>波浪／KD／123：使用同月份已收K線重算，未收K不產生進場訊號。根數不足時等待回補。</li><li>群益尚未提供的市場：沿用本站原有行情來源，依各市場資料時間顯示；圖表若未接入即時K線會明確標示。</li><li>比特幣：Kraken公開行情。法人、選擇權及大額交易人籌碼依官方每日公布日期更新。</li></ul>';
       state.stTf='M5';state.waveTf='M5';
-      $('#wave').hidden=false;
+      $('#wave').hidden=true;   // 只保留波段布局
       STOCKS=(await getJSON('data/stocks/index.json'))||[];
       $('#stk-list').innerHTML=STOCKS.map(x=>`<option value="${esc(x.code)} ${esc(x.name)}">`).join('');
       $('#stk-form').addEventListener('submit',e=>{e.preventDefault();pickStock($('#stk-in').value);});
