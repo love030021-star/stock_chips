@@ -97,10 +97,14 @@
     if(CAPITAL_ONLY&&usesBrokerMarket(id)){
       if(!BROKER_MARKETS.includes(id)&&!id.startsWith('S:'))return {W:null,S:null,meta:{ready:false,external:true,wave:null,strategy:null,message:'此商品的波浪／KD／123尚未接入即時K線；不沿用舊檔訊號。'}};
       if(!FEED_BASE)return {W:null,S:null,meta:{connected:false,ready:false,message:'公開群益行情服務尚未啟用。'}};
-      const response=await fetch(`${FEED_BASE}/api/analysis?market=${encodeURIComponent(id)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)});
-      const data=await response.json();
-      if(!response.ok)throw Error(data.error||'分析服務未連線');
-      return {W:data.wave,S:data.strategy,meta:data};
+      // 群益已收K分析就緒才用；還沒就緒（剛登入、海期、斷線）就改用本站每小時更新的波浪與布局，不讓分析變空白
+      let data=null;
+      try{
+        const response=await fetch(`${FEED_BASE}/api/analysis?market=${encodeURIComponent(id)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)});
+        data=await response.json();
+        if(!response.ok)data=null;
+      }catch(e){data=null;}
+      if(data&&data.ready===true&&data.wave&&data.strategy)return {W:data.wave,S:data.strategy,meta:data};
     }
     if (!CACHE[id]) {
       if (id.startsWith("S:")) {
@@ -114,7 +118,7 @@
         CACHE[id] = { W: m, S: m && m.strategy };
       }
     }
-    if(CAPITAL_ONLY)return {...CACHE[id],meta:{external:true,connected:false,ready:false,generated_at:CACHE[id]?.W?.generated_at||'',message:'此商品報價沿用原有來源；圖表依標示的K線時間更新，尚未接入群益即時K線。'}};
+    if(CAPITAL_ONLY)return {...CACHE[id],meta:{site:true,external:false,connected:true,ready:true,generated_at:CACHE[id]?.W?.generated_at||'',message:'波浪與布局使用本站每小時更新的日／60／30／5分K線；報價即時更新。'}};
     return CACHE[id];
   }
 
@@ -553,7 +557,7 @@
   }
   function showAnalysisStatus(meta){
     if(!meta)return;
-    const text=(meta.external?'其他市場來源：價格以成交時間為準。':meta.connected?'群益連線中。':'群益公開行情未連線；分析僅供已收K參考。')+' '+meta.message+(meta.generated_at?' 計算時間 '+meta.generated_at:'')+(meta.ready?' 波浪隨新K線可能改變數浪。':'');
+    const text=(meta.site?'':meta.external?'其他市場來源：價格以成交時間為準。':meta.connected?'群益連線中。':'群益公開行情未連線；分析僅供已收K參考。')+' '+meta.message+(meta.generated_at?' 計算時間 '+meta.generated_at:'')+(meta.ready?' 波浪隨新K線可能改變數浪。':'');
     const note=$('#capital-analysis-info');if(note)note.textContent=text;
     if(!meta.ready)$('#st-meta').textContent=text;
     if(!meta.connected){
