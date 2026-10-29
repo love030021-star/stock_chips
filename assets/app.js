@@ -24,13 +24,15 @@
 
   const usesBrokerMarket=id=>['TX','SRF'].includes(id)||Boolean(latestCapitalFeed?.contracts?.[id]);
   const futureProduct = id => id === 'TX' || id === 'SRF';
+  // 不分月份：台指期、小型0050 一律用近月連續（全日盤），不再選個別契約月份
+  const MONTHS_ENABLED = false;
   function selectedMonth(id = state.mkt) {
-    if (!futureProduct(id)) return '';
+    if (!MONTHS_ENABLED || !futureProduct(id)) return '';
     const months = futuresCatalog.markets[id]?.months || [];
     const saved = futuresMonths[id];
     return months.some(m => m.month === saved) ? saved : id === 'SRF' ? (months[0]?.month || '') : '';
   }
-  const datedFuture = (id = state.mkt) => id === 'SRF' || Boolean(selectedMonth(id));
+  const datedFuture = (id = state.mkt) => MONTHS_ENABLED && (id === 'SRF' || Boolean(selectedMonth(id)));
   async function initFutures() {
     futuresCatalog = await getJSON('data/futures-contracts.json') || {markets:{}};
     try { const saved=JSON.parse(localStorage.getItem('futures-months-v1')||'{}'); if(saved&&typeof saved==='object') futuresMonths=saved; } catch(e) {}
@@ -46,7 +48,7 @@
   }
   function syncMonthControl(id) {
     const control=$('#fut-contract'), select=$('#fut-month'); if(!control||!select)return;
-    control.hidden=!futureProduct(id); if(control.hidden)return;
+    control.hidden=!MONTHS_ENABLED||!futureProduct(id); if(control.hidden)return;
     const months=futuresCatalog.markets[id]?.months||[];
     select.innerHTML=(id==='TX'?`<option value="">${CAPITAL_ONLY?'近月（自動切換）':'近月連續（原有資料）'}</option>`:'')+
       months.map(m=>`<option value="${esc(m.month)}">${esc(m.label)}${m.month===months[0].month?' · 近月':''}</option>`).join('');
