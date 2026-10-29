@@ -7,7 +7,7 @@
       const contract=feed?.contracts?.[key],quote=feed?.quotes?.[key];
       const expiry=String(contract?.expiry||contract?.last_trade_date||'').replace(/[^0-9]/g,'');
       const code=String(contract?.order_code||'');
-      const family=String(contract?.exchange_code||'').toUpperCase();
+      const family=String(contract?.exchange_code||contract?.exchange||'').toUpperCase();
       if(expiry.length!==8||expiry.slice(0,6)!==month||!code||code.endsWith('00')||code.includes('/')||quote?.product!==code)continue;
       if(!family.startsWith(root==='TX'?'TXF':'SRF'))continue;
       return {key,contract,quote};

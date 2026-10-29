@@ -22,6 +22,7 @@
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
   const getJSON = (u) => fetch(`${u}?v=${Date.now().toString(36)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
+  const usesBrokerMarket=id=>['TX','SRF'].includes(id)||Boolean(latestCapitalFeed?.contracts?.[id]);
   const futureProduct = id => id === 'TX' || id === 'SRF';
   function selectedMonth(id = state.mkt) {
     if (!futureProduct(id)) return '';
@@ -93,7 +94,7 @@
 
   async function loadMarket(id) {
     if(datedFuture(id))return loadDatedFuture(id,selectedMonth(id));
-    if(CAPITAL_ONLY){
+    if(CAPITAL_ONLY&&usesBrokerMarket(id)){
       if(!BROKER_MARKETS.includes(id)&&!id.startsWith('S:'))return {W:null,S:null,meta:{ready:false,external:true,wave:null,strategy:null,message:'此商品的波浪／KD／123尚未接入即時K線；不沿用舊檔訊號。'}};
       if(!FEED_BASE)return {W:null,S:null,meta:{connected:false,ready:false,message:'公開群益行情服務尚未啟用。'}};
       const response=await fetch(`${FEED_BASE}/api/analysis?market=${encodeURIComponent(id)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)});
@@ -113,6 +114,7 @@
         CACHE[id] = { W: m, S: m && m.strategy };
       }
     }
+    if(CAPITAL_ONLY)return {...CACHE[id],meta:{external:true,connected:false,ready:false,generated_at:CACHE[id]?.W?.generated_at||'',message:'此商品報價沿用原有來源；圖表依標示的K線時間更新，尚未接入群益即時K線。'}};
     return CACHE[id];
   }
 
@@ -166,7 +168,7 @@
       }
       return;
     }
-    LIVE.capitalActive = true; LIVE.qOk = true; LIVE.src = "群益 SDK";
+    LIVE.capitalActive = true; LIVE.qOk = true; LIVE.src = "群益 SDK";LIVE.widget=false;$("#tvq").hidden=true;$("#tvq").replaceChildren();
     LIVE.px = q.last_tick_price || q.price; LIVE.stale = !q.fresh || (!q.timestamp_basis && Date.now()-(q.last_tick_at||q.source_updated_at||0)*1000>15000);LIVE.receiptOnly=q.timestamp_basis==='receipt';
     LIVE.chg = q.reference > 0 ? (LIVE.px / q.reference - 1) * 100 : null;
     const time = LIVE.receiptOnly?`報價接收 ${new Date(q.received_at*1000).toLocaleTimeString('zh-TW',{hour12:false})} · 來源 ${q.source_date||q.trading_day} ${q.source_time||''}（交易所時區待核對）`:q.last_tick_at ? new Date(q.last_tick_at * 1000).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }) : `交易日 ${q.trading_day}／成交時間 ${String(q.deal_time || 0).padStart(6,"0")}`;
@@ -268,7 +270,7 @@
     const el = $("#cd"), id = state.mkt;
     if (!el) return;
     if(datedFuture()){el.textContent=CAPITAL_ONLY?'指定月份報價與已收K分開更新；以各自資料時間為準。':'歷史K線以標示日期為準；即時報價等待行情服務。';return;}
-    if(CAPITAL_ONLY){el.textContent=['TX','SRF'].includes(id)?'行情：群益逐筆串流；波浪／KD／123：已收K後重算。':'資料時間超過15秒標為快照；此商品分析尚待即時K線來源。';return;}
+    if(CAPITAL_ONLY&&usesBrokerMarket(id)){el.textContent=['TX','SRF'].includes(id)?'行情：群益逐筆串流；波浪／KD／123：已收K後重算。':'資料時間超過15秒標為快照；此商品分析尚待即時K線來源。';return;}
     if (!id || id.startsWith("S:")) { el.textContent = ""; return; }
     const parts = [];
     parts.push(`${CD_QUOTE.includes(id) && !(LIVE.qOk && LIVE.mkt === id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
@@ -324,20 +326,21 @@
   }
   function liveStart(id) {
     liveStop();
+    const useBroker=CAPITAL_ONLY&&usesBrokerMarket(id);
     if(datedFuture(id)){
       $('#tvq').hidden=true;$('#tvq').replaceChildren();
       LIVE.mkt=id;LIVE.widget=false;LIVE.src='';LIVE.msg='等待此月份即時行情連線；下方顯示已公布的歷史K線';LIVE.stale=true;LIVE.qOk=false;
       liveDraw(true);if(latestCapitalFeed)window.dispatchEvent(new CustomEvent('capital-feed',{detail:latestCapitalFeed}));$('#cd').textContent='';return;
     }
-    if(!CAPITAL_ONLY)tvQuote(id);else{$('#tvq').hidden=true;$('#tvq').replaceChildren();}
-    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !CAPITAL_ONLY && !!TVSYM[id]; LIVE.qOk = false;
-    if(CAPITAL_ONLY && (BROKER_MARKETS.includes(id)||id.startsWith('S:'))){LIVE.msg='等待群益資料連線；不以舊報價補值';liveDraw(true);cdTick();return;}
-    if(CAPITAL_ONLY && !['BTC','TWII','TPEX','00631L'].includes(id)){
+    if(!useBroker)tvQuote(id);else{$('#tvq').hidden=true;$('#tvq').replaceChildren();}
+    LIVE.mkt = id; LIVE.src = ""; LIVE.msg = ""; LIVE.stale = false; LIVE.widget = !useBroker && !!TVSYM[id]; LIVE.qOk = false;
+    if(useBroker && (BROKER_MARKETS.includes(id)||id.startsWith('S:'))){LIVE.msg='等待群益資料連線；不以舊報價補值';liveDraw(true);cdTick();return;}
+    if(useBroker && !['BTC','TWII','TPEX','00631L'].includes(id)){
       LIVE.msg='此商品尚待授權即時行情來源；不顯示舊報價冒充即時';
       if(TVQ_IDS.includes(id))LIVE.timer2=pollTVQ(id);
       liveDraw(true);cdTick();return;
     }
-    if(CAPITAL_ONLY && id==='00631L'){
+    if(useBroker && id==='00631L'){
       LIVE.src='證交所資料轉接';LIVE.timer=pollWorker(id,'/otc',j=>j['00631L'],1000);liveDraw(true);cdTick();return;
     }
     if (id === "BTC") {
@@ -363,7 +366,7 @@
       open();
     } else if (id === "TWII" || id === "TPEX") {
       LIVE.src = "live";
-      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"], CAPITAL_ONLY?1000:5000);
+      LIVE.timer = pollWorker(id, "/otc", (j) => j[id === "TWII" ? "twii" : "otc"], useBroker?1000:5000);
     } else if (!id.startsWith("S:") && id !== "TX" && id !== "TWII" && id !== "TPEX") {
       // TradingView 商品：每小時由排程更新到網站；這裡每 2 分鐘檢查一次，有新資料就顯示最新價並重畫
       LIVE.src = "";
@@ -476,9 +479,10 @@
     if(CAPITAL_ONLY){
       $(".hero-date").firstChild.textContent="行情資料時間 ";
       $("#sources").innerHTML="\n    <h2>資料來源</h2>\n    <ul>\n      <li>群益行情：僅揭示站長已確認可公開的商品。顯示實際資料時間，未接入商品不沿用舊價。</li>\n      <li>國內商品：逐筆保存K線，向SDK回補日K與1分K；至少60根已收K才沿用本站波浪、KD及123規則計算。</li>\n      <li>海期：從商品檔選取精確規格的未到期合約；報價可接收，交易所時區與分析K線仍待實機核對。日經改用美元NKD，與原CMC商品不同。</li>\n      <li>加權、櫃買與台灣50正2：等待站長發布群益行情。公開版不將其他來源的價格標成群益。</li>\n      <li>Kraken WebSocket：比特幣BTC/USD即時行情；分析K線尚未串接。</li>\n      <li>期交所法人、選擇權、大額交易人籌碼：每5分鐘讀取本站最新公布檔，顯示資料日期；官方每日資料不能轉成逐筆即時。</li>\n    </ul>\n    <p class=\"sub\">公開報價畫面每2秒讀取，分析於已收K變動後重算；不同月份不直接拼接。K線依台北時鐘分桶，與原網站日盤08:45起算方式不同。歷史回補依SDK可提供範圍，不保證完整。波浪可隨新K線改變數浪。</p>\n  ";
-      MARKETS.splice(0,MARKETS.length,{id:'TX',name:'台指期（群益）',tfs:['D','H','M30','M5']},{id:'SRF',name:'小型0050期貨（群益）',tfs:['D','H','M30','M5']});
+      MARKETS.splice(0,MARKETS.length,{id:'TX',name:'台指期',tfs:['D','H','M30','M5']},{id:'SRF',name:'小型0050期貨',tfs:['D','H','M30','M5']});
       const otherMarkets=await getJSON('data/markets/index.json');
-      (otherMarkets||[]).forEach(m=>MARKETS.push(m.id==='JP225'?{...m,name:'日經225（美元NKD）'}:m.id==='BRENT'?{...m,name:'布蘭特原油（群益）'}:m));
+      (otherMarkets||[]).forEach(m=>MARKETS.push(m));
+      const sources=$('#sources');sources.innerHTML='<h2>資料來源</h2><ul><li>台指期、小型0050：優先群益SDK，核對個別月份；報價每2秒讀取。沒有近期成交時顯示最後成交時間。</li><li>波浪／KD／123：使用同月份已收K線重算，未收K不產生進場訊號。根數不足時等待回補。</li><li>群益尚未提供的市場：沿用本站原有行情來源，依各市場資料時間顯示；圖表若未接入即時K線會明確標示。</li><li>比特幣：Kraken公開行情。法人、選擇權及大額交易人籌碼依官方每日公布日期更新。</li></ul>';
       state.stTf='M5';state.waveTf='M5';
       $('#wave').hidden=false;
       STOCKS=(await getJSON('data/stocks/index.json'))||[];
@@ -491,7 +495,8 @@
       $('#chips h2').textContent='台指選擇權籌碼（每日公布，非即時）';
       refreshDailyChips(true);setInterval(()=>refreshDailyChips(false),300000);
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDailyChips(false);});
-      await showMarket('TX');
+      let initial='TX';try{const saved=localStorage.getItem('mkt');if(MARKETS.some(m=>m.id===saved))initial=saved;}catch(e){}
+      await showMarket(initial);
       setInterval(refreshLiveAnalysis,2000);
       return;
     }
