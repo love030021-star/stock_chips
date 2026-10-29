@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css?v=202610272245">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2733'/><rect x='6' y='18' width='5' height='8' fill='%23D2232A'/><rect x='13.5' y='12' width='5' height='14' fill='%23C98A0B'/><rect x='21' y='6' width='5' height='20' fill='%23ffffff'/></svg>">
-</head>
+<link rel="stylesheet" href="assets/capital-feed.css"></head>
 <body>
 <div class="notice" role="note">
   本站不是證券或期貨投資顧問，內容是用公開資料依固定規則計算的結果，不構成投資建議。<a href="#disclaimer">完整聲明</a>
@@ -27,7 +27,7 @@
 </nav>
 
 <header class="hero" id="top">
-  <p class="hero-date">台指期資料到 <span id="data-date">載入中</span></p>
+  <p class="hero-date">台指期分析資料到 <span id="data-date">載入中</span></p>
   <h1 class="hero-title"><span>台股</span><span>期貨</span><span>波浪</span><span>籌碼</span><span>試算</span></h1>
   <p class="hero-lede">用台股、期貨與國際盤的真實走勢當教材，一步步練習艾略特波浪、回檔比例、123 法則與 KD 的判讀；每個試算都附上圖解與計算過程，讓你看懂方法、自己判斷。</p>
 </header>
@@ -169,9 +169,9 @@
 </main>
 
 <footer class="foot">
-  <p>波浪籌碼日報。資料於每個交易日晚間與隔天清晨自動更新。</p>
+  <p>波浪籌碼日報。行情標示來源時間；分析與籌碼依各區塊資料日期更新。</p>
 </footer>
 
-<script src="assets/app.js?v=202610272245" defer></script>
+<script src="assets/public-feed-config.js" defer></script><script src="assets/capital-feed.js" defer></script><script src="assets/app.js?v=20261029public2" defer></script>
 </body>
 </html>
