@@ -211,7 +211,7 @@
       return;
     }
     const c = LIVE.chg;
-    if(!LIVE.capitalActive)LIVE.stale=!(LIVE.updatedAt && now-LIVE.updatedAt<=15000);
+    if(!LIVE.capitalActive)LIVE.stale=!(LIVE.updatedAt && now-LIVE.updatedAt<=60000);
     if(CAPITAL_ONLY&&!LIVE.capitalActive&&LIVE.updatedAt)$('#data-date').textContent=`${LIVE.src||'公開行情'} · ${new Date(LIVE.updatedAt).toLocaleString('zh-TW',{hour12:false})}`;
     el.className = "live on";
     el.innerHTML = `<span class="dot"></span><b>${LIVE.receiptOnly?'群益報價':LIVE.stale ? "資料價" : LIVE.capitalActive?"即時":"近期報價"} ${fp(LIVE.px)}</b>${c != null ? ` <span class="${cls(c)}">${c > 0 ? "+" : ""}${c.toFixed(2)}%</span>` : ""} <small>${esc(LIVE.t)}</small>${liveZone(LIVE.px) ? `<span class="lz">${esc(liveZone(LIVE.px))}</span>` : ""}`;
@@ -291,17 +291,17 @@
         {
           const date=String(x.d||'').replace(/[^0-9]/g,''),tm=String(x.t||'').replace(/[^0-9]/g,'').padStart(6,'0');
           const stamp=x.at||Date.parse(`${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}T${tm.slice(0,2)}:${tm.slice(2,4)}:${tm.slice(4,6)}+08:00`);
-          if(!Number.isFinite(stamp)||Date.now()-stamp>15000||stamp>Date.now()+5000){LIVE.stale=true;liveDraw(true);return;}
+          if(!Number.isFinite(stamp)||stamp>Date.now()+5000){LIVE.stale=true;liveDraw(true);return;}
           LIVE.updatedAt=stamp;
         }
-        LIVE.qOk = true; LIVE.stale = false; LIVE.px = x.px; LIVE.chg = x.chg; LIVE.t = fmtT(x.d, x.t);
+        LIVE.qOk = true; LIVE.stale = Date.now() - LIVE.updatedAt > 60000; LIVE.px = x.px; LIVE.chg = x.chg; LIVE.t = fmtT(x.d, x.t);
         liveDraw(true);
       } catch (e) { /* 略過 */ } finally { busy = false; }
     };
     go();
     return setInterval(go, ms);
   }
-  // 你 TradingView 警示每分鐘推到 Worker 的價格（/tvq）；超過 10 分鐘沒新價就不採用，改回每小時資料
+  // TradingView 每15秒推到 Worker；保留最後一筆，非近期時顯示資料價與來源時間。
   const TVQ_IDS = ["MNQ", "YM", "GOLD", "BRENT", "TX"];
   function pollTVQ(id) {
     return pollWorker(id, "/tvq", (j) => {
@@ -310,7 +310,7 @@
       const w = CACHE[id] && CACHE[id].W, D = w && w.D && w.D.bars ? w.D.bars : [];
       // 收盤後警示不再推送，最後一筆仍是最新成交價；只有每小時資料比它新時才改用每小時資料
       const R = w && (w.M5 || w.H), hT = R && R.last ? Date.parse(String(R.last.t).replace(" ", "T") + ":00+08:00") : 0;
-      if (x.at < hT || Date.now() - x.at > 15000) return null;
+      if (x.at < hT || Date.now() - x.at > 3 * 86400e3) return null;
       const last = D.length ? D[D.length - 1] : null;
       const tpe = new Date(x.at + 8 * 3600e3), day = tpe.toISOString().slice(0, 10);
       // 前一日收盤：日線最後一根若是今天（台指期 15:00 後的夜盤算下一個交易日）就取前一根
