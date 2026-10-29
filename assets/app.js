@@ -264,7 +264,17 @@
       return base.getTime() - 8 * 3600e3 - now;
     });
   }
+  // 各週期布局在自己的 K 棒收盤後重算（5 分每 5 分鐘、30 分每 30 分鐘、60 分每小時；排程約晚 3～5 分鐘）
+  const PLAN_MIN = { M5: 5, M30: 30, H: 60 };
   function nextPlan() {
+    const per = PLAN_MIN[state.stTf];
+    if (per) return nextTpe((t, now) => {
+      const m = t.getUTCHours() * 60 + t.getUTCMinutes(), b = new Date(t); b.setUTCSeconds(0, 0);
+      let next = Math.floor(m / per) * per + per + 4;
+      if (next - per > m) next -= per;
+      b.setUTCHours(0, next);
+      return b.getTime() - 8 * 3600e3 - now;
+    });
     return nextTpe((t, now) => {
       const b = new Date(t); b.setUTCSeconds(0, 0);
       b.setUTCMinutes(38);
@@ -283,7 +293,7 @@
     if(CAPITAL_ONLY&&usesBrokerMarket(id)){el.textContent=['TX','SRF'].includes(id)?'行情：群益逐筆串流；波浪／KD／123：已收K後重算。':'資料時間超過15秒標為快照；此商品分析尚待即時K線來源。';return;}
     if (!id || id.startsWith("S:")) { el.textContent = ""; return; }
     const parts = [];
-    parts.push(`${CD_QUOTE.includes(id) && !(LIVE.qOk && LIVE.mkt === id) ? "價格與布局" : "布局"}下次更新 <b>${mmss(nextPlan())}</b>`);
+    parts.push(`${({D:"日線",H:"60 分",M30:"30 分",M5:"5 分"})[state.stTf]||""}布局下次更新 約 <b>${mmss(nextPlan())}</b>`);
     if (LIVE_LINK[id]) parts.push(`<a href="${LIVE_LINK[id][0]}" target="_blank" rel="noopener">${LIVE_LINK[id][1]} ↗</a>`);
     el.innerHTML = parts.join("　");
   }

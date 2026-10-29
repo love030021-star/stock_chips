@@ -1,0 +1,62 @@
+name: 5 分布局更新
+
+# 每 5 分鐘：把 Worker 收到的 TradingView 15 秒價格（彙整成 5 分 K）併入，重算 5 分／30 分／60 分布局。
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: tv-update
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝套件
+        run: pip install -r requirements.txt
+
+      - name: 重算各市場
+        env:
+          TZ: Asia/Taipei
+        run: |
+          python scripts/live_bars.py
+          python scripts/markets.py
+          python scripts/txf.py --no-fetch
+          python scripts/strategy.py
+
+      - name: 提交結果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/store/tv data/markets data/store/markets data/store/txf data/wave.json data/strategy.json
+          if git diff --cached --quiet; then
+            echo "沒有變動"
+          else
+            git commit -m "5 分布局更新 $(TZ=Asia/Taipei date '+%F %H:%M')"
+            git pull --rebase -X theirs origin main || true
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
