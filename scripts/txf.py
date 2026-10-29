@@ -636,6 +636,7 @@ def analyze(bars_map: dict, tf: str):
         seen.add(key)
         lab = labels_for(c)
         counts.append({
+            "kind": c["kind"], "d": c["d"], "k": c["k"],   # 給波段布局沿用同一組數浪
             "pattern": pattern, "now": now, "text": text,
             "confidence": round(min(score, 1) * 100), "threshold": f"{mult:g} 倍 ATR(14)",
             "points": [[bars[piv[c["s"] + j][0]][0], rp(piv[c["s"] + j][1]), lab[j]]

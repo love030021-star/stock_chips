@@ -365,10 +365,22 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
         if len(bars) < 60:
             continue
         T = daily_trend(bars, tf)
+        # 與上方「波浪推算」同一套數浪：主要數法是推動浪就用它的浪點；是修正浪就等修正結束，不另外找推動浪
+        prim = ((W.get(tf) or {}).get("counts") or [None])[0]
+        wait_note = None
+        if prim and prim.get("kind") == "impulse" and prim.get("d") and len(prim.get("points") or []) >= 2:
+            T = dict(T, d=prim["d"], k=len(prim["points"]) - 1, fallback=False,
+                     pts=[(pt_[0], pt_[1]) for pt_ in prim["points"]],
+                     kd_ok=[x.get("ok") for x in prim.get("kd") or []])
+        elif prim and prim.get("kind"):
+            wait_note = f"{TFN[tf]}主要數法為{prim.get('pattern', '修正浪')}（{prim.get('now', '')}），屬於修正走勢；等修正結束、出現新的推動浪再布局。"
+            T = dict(T, d=0, k=None, pts=[], fallback=True)
         if last is None:
             last = T["last"]
         et = ENTRY_TF[tf]
         P = plan_from(dict(T, last=last, lower_label=TFN[et], tfn=TFN[tf]))
+        if wait_note:
+            P.update({"now": "依主要數法：修正浪進行中", "trend": "修正走勢", "phase": "wait", "text": wait_note})
         P["tf"], P["tf_label"], P["entry_tf"] = tf, TF_LABEL[tf], TFN[et]
         P["data_t"], P["data_close"] = T["last_t"], T["last"]
         ks = sorted(bars)
