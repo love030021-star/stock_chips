@@ -15,6 +15,7 @@ import markets  # noqa: E402
 import stocks  # noqa: E402
 import strategy  # noqa: E402
 import txf  # noqa: E402
+import futures  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -28,6 +29,7 @@ def main():
     ap.add_argument("--build-only", action="store_true")
     args = ap.parse_args()
     steps = [
+        ("指定月份台指期與小型0050日線", lambda: futures.run(ROOT, fetch=not args.build_only)),
         ("台指期波浪推算", lambda: txf.run(ROOT, fetch=not args.build_only)),
         ("其他商品波浪推算", lambda: None if args.build_only else markets.run(ROOT)),
         ("個股波浪推算", lambda: None if args.build_only else stocks.run()),
