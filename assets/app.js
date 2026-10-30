@@ -220,7 +220,7 @@
     const px = LIVE.px, L = BIAS.levels;
     const row = (k, lab) => {
       const v = L[k], d = px != null ? px - v : null;
-      return `<tr><td>${lab}</td><td class="r">${fp(v, 0)}</td><td class="r ${d != null ? (d >= 0 ? "up" : "down") : ""}">${d != null ? (d > 0 ? "+" : "") + fmt(d, 0) : "—"}</td></tr>`;
+      return `<tr><td>${lab}</td><td class="r">${fp(v, 1)}</td><td class="r ${d != null ? (d >= 0 ? "up" : "down") : ""}">${d != null ? (d > 0 ? "+" : "") + fmt(d, 0) : "—"}</td></tr>`;
     };
     const dev = px != null ? (px / BIAS.avg - 1) * 100 : null;
     el.innerHTML = `<div class="st-head"><h3>價乖離（5 日均價 ${fp(BIAS.avg, 1)}）</h3><small>${dev != null ? `目前乖離 ${dev > 0 ? "+" : ""}${dev.toFixed(2)}%` : ""}</small></div>
