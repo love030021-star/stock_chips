@@ -45,7 +45,7 @@ jobs:
               git commit -q -m "5 分布局更新 $(date '+%F %H:%M')"
               for i in 1 2 3; do
                 git push -q origin HEAD:main && break
-                git pull -q --rebase -X theirs origin main || { git rebase --abort; git reset -q --hard origin/main; break; }
+                git pull -q --rebase -X ours origin main || { git rebase --abort; git reset -q --hard origin/main; break; }
               done
             fi
             now=$(date +%s); next=$(( (now/300 + 1)*300 + 40 ))
