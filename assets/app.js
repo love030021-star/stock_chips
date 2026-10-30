@@ -217,17 +217,27 @@
     if (!el) return;
     if (state.mkt !== "TX" || !BIAS || !BIAS.levels) { el.hidden = true; return; }
     el.hidden = false;
-    const px = LIVE.px, L = BIAS.levels;
+    let L = BIAS.levels, avg = BIAS.avg, days = BIAS.days;
+    if (Array.isArray(BIAS.bars) && BIAS.bars.length >= 5) {   // 15:00 夜盤開盤後才算前一交易日收完：瀏覽器自己判斷，準時換新
+      const nextOpen = (t) => { const d = new Date((t + 8 * 3600) * 1000); d.setUTCDate(d.getUTCDate() + 1); while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 7, 0); };
+      const use = BIAS.bars.filter((b) => Date.now() >= nextOpen(b[0])).slice(-5);
+      if (use.length === 5) {
+        avg = use.reduce((a, b) => a + b[1], 0) / 5;
+        L = {}; [5, 6].forEach((n) => { L["+" + n] = avg * (1 + n / 100); L["-" + n] = avg * (1 - n / 100); });
+        days = use.map((b) => { const d = new Date(nextOpen(b[0]) - 75 * 60000 + 8 * 3600000); return [d.toISOString().slice(0, 10), b[1]]; });
+      }
+    }
+    const px = LIVE.px;
     const row = (k, lab) => {
       const v = L[k], d = px != null ? px - v : null;
       return `<tr><td>${lab}</td><td class="r">${fp(v, 1)}</td><td class="r ${d != null ? (d >= 0 ? "up" : "down") : ""}">${d != null ? (d > 0 ? "+" : "") + fmt(d, 0) : "—"}</td></tr>`;
     };
-    const dev = px != null ? (px / BIAS.avg - 1) * 100 : null;
-    el.innerHTML = `<div class="st-head"><h3>價乖離（5 日均價 ${fp(BIAS.avg, 1)}）</h3><small>${dev != null ? `目前乖離 ${dev > 0 ? "+" : ""}${dev.toFixed(2)}%` : ""}</small></div>
+    const dev = px != null ? (px / avg - 1) * 100 : null;
+    el.innerHTML = `<div class="st-head"><h3>價乖離（5 日均價 ${fp(avg, 1)}）</h3><small>${dev != null ? `目前乖離 ${dev > 0 ? "+" : ""}${dev.toFixed(2)}%` : ""}</small></div>
       <table><tr><th>位置</th><th class="r">價位</th><th class="r">現價差距</th></tr>${row("+6", "正乖離 6%")}${row("+5", "正乖離 5%")}${row("-5", "負乖離 5%")}${row("-6", "負乖離 6%")}</table>
-      <p class="hint">均價取 ${esc(BIAS.days[0][0].slice(5).replace("-", "/"))}～${esc(BIAS.days[BIAS.days.length - 1][0].slice(5).replace("-", "/"))} 收盤，每天下午 3 點開盤後更新。</p>`;
+      <p class="hint">均價取 ${esc(days[0][0].slice(5).replace("-", "/"))}～${esc(days[days.length - 1][0].slice(5).replace("-", "/"))} 收盤，每天下午 3 點開盤後更新。</p>`;
   }
-  loadBias(); setInterval(loadBias, 600000);
+  loadBias(); setInterval(loadBias, 300000);
   function liveDraw(force) {
     drawBias();
     const el = $("#live");

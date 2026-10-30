@@ -38,6 +38,7 @@ def main():
         "symbol": "TAIFEX:TXF1!", "length": LENGTH, "avg": round(avg, 2),
         "days": [[day(r[0]), r[4]] for r in use],
         "levels": {f"+{n}": round(avg * (1 + n / 100), 1) for n in LEVELS} | {f"-{n}": round(avg * (1 - n / 100), 1) for n in LEVELS},
+        "bars": [[r[0], r[4]] for r in rows[-12:]],   # 網頁端依當下時間自己選 5 天，15:00 一到就換，不必等排程
         "generated_at": now.isoformat(timespec="minutes"),
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
