@@ -206,7 +206,30 @@
     const [b, i] = hit[hit.length - 1];
     return `${lab}：已到${rv(b.tier || "")}第 ${i + 1} 批 ${fp(b.price)}，等 ${P.entry_tf || "小週期"} K 的 123`;
   }
+  // 台指期價乖離（同你 TV「正負價乖離」：前 5 個已完成交易日收盤平均 ×（1±5%/6%），每天 15:00 開盤後換新）
+  let BIAS = null;
+  async function loadBias() {
+    try { const r = await fetch("data/bias.json?_=" + Date.now()); if (r.ok) BIAS = await r.json(); } catch (e) { /* 沿用舊值 */ }
+    drawBias();
+  }
+  function drawBias() {
+    const el = $("#st-bias");
+    if (!el) return;
+    if (state.mkt !== "TX" || !BIAS || !BIAS.levels) { el.hidden = true; return; }
+    el.hidden = false;
+    const px = LIVE.px, L = BIAS.levels;
+    const row = (k, lab) => {
+      const v = L[k], d = px != null ? px - v : null;
+      return `<tr><td>${lab}</td><td class="r">${fp(v, 0)}</td><td class="r ${d != null ? (d >= 0 ? "up" : "down") : ""}">${d != null ? (d > 0 ? "+" : "") + fmt(d, 0) : "—"}</td></tr>`;
+    };
+    const dev = px != null ? (px / BIAS.avg - 1) * 100 : null;
+    el.innerHTML = `<div class="st-head"><h3>價乖離（5 日均價 ${fp(BIAS.avg, 1)}）</h3><small>${dev != null ? `目前乖離 ${dev > 0 ? "+" : ""}${dev.toFixed(2)}%` : ""}</small></div>
+      <table><tr><th>位置</th><th class="r">價位</th><th class="r">現價差距</th></tr>${row("+6", "正乖離 6%")}${row("+5", "正乖離 5%")}${row("-5", "負乖離 5%")}${row("-6", "負乖離 6%")}</table>
+      <p class="hint">均價取 ${esc(BIAS.days[0][0].slice(5).replace("-", "/"))}～${esc(BIAS.days[BIAS.days.length - 1][0].slice(5).replace("-", "/"))} 收盤，每天下午 3 點開盤後更新。</p>`;
+  }
+  loadBias(); setInterval(loadBias, 600000);
   function liveDraw(force) {
+    drawBias();
     const el = $("#live");
     if (!el) return;
     const now = Date.now();

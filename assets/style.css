@@ -404,3 +404,4 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 [hidden] { display: none !important; }
 .cd { flex-basis: 100%; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cd b { color: var(--ink, inherit); font-weight: 600; }
+.st-bias { margin: 12px 0; } .st-bias .st-head small { color: var(--muted); }
