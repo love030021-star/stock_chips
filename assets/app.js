@@ -563,7 +563,7 @@
       $("#sources").innerHTML="\n    <h2>資料來源</h2>\n    <ul>\n      <li>群益行情：僅揭示站長已確認可公開的商品。顯示實際資料時間，未接入商品不沿用舊價。</li>\n      <li>國內商品：逐筆保存K線，向SDK回補日K與1分K；至少60根已收K才沿用本站波浪、KD及123規則計算。</li>\n      <li>海期：從商品檔選取精確規格的未到期合約；報價可接收，交易所時區與分析K線仍待實機核對。日經改用美元NKD，與原CMC商品不同。</li>\n      <li>加權、櫃買與台灣50正2：等待站長發布群益行情。公開版不將其他來源的價格標成群益。</li>\n      <li>Kraken WebSocket：比特幣BTC/USD即時行情；分析K線尚未串接。</li>\n      <li>期交所法人、選擇權、大額交易人籌碼：每5分鐘讀取本站最新公布檔，顯示資料日期；官方每日資料不能轉成逐筆即時。</li>\n    </ul>\n    <p class=\"sub\">公開報價畫面每2秒讀取，分析於已收K變動後重算；不同月份不直接拼接。K線依台北時鐘分桶，與原網站日盤08:45起算方式不同。歷史回補依SDK可提供範圍，不保證完整。波浪可隨新K線改變數浪。</p>\n  ";
       MARKETS.splice(0,MARKETS.length,{id:'TX',name:'台指期',tfs:['D','H','M30','M5']},{id:'SRF',name:'小型0050期貨',tfs:['D','H','M30','M5']});
       const otherMarkets=await getJSON('data/markets/index.json');
-      (otherMarkets||[]).forEach(m=>MARKETS.push(m));
+      (otherMarkets||[]).forEach(m=>{if(!MARKETS.some(x=>x.id===m.id))MARKETS.push(m);});
       const sources=$('#sources');sources.innerHTML='<h2>資料來源</h2><ul><li>台指期、小型0050：優先群益SDK，核對個別月份；報價每2秒讀取。沒有近期成交時顯示最後成交時間。</li><li>波浪／KD／123：使用同月份已收K線重算，未收K不產生進場訊號。根數不足時等待回補。</li><li>群益尚未提供的市場：沿用本站原有行情來源，依各市場資料時間顯示；圖表若未接入即時K線會明確標示。</li><li>比特幣：Kraken公開行情。法人、選擇權及大額交易人籌碼依官方每日公布日期更新。</li></ul>';
       state.stTf='M5';state.waveTf='M5';
       $('#wave').hidden=true;   // 只保留波段布局
@@ -583,7 +583,7 @@
       return;
     }
     const idx = await getJSON("data/markets/index.json");
-    (idx || []).forEach((m) => MARKETS.push(m));
+    (idx || []).forEach((m) => { if (!MARKETS.some((x) => x.id === m.id)) MARKETS.push(m); });
     $("#mkt-tabs").innerHTML = MARKETS.map((m) => `<button data-v="${m.id}" aria-pressed="${m.id === "TX"}">${esc(m.name.replace(/（.*）/, ""))}</button>`).join("");
     $("#mkt-tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showMarket(b.dataset.v); });
     let start = "TX";

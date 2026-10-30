@@ -31,6 +31,8 @@ MARKETS = [
      "pt": {"點數": 1}, "unit": "點"},
     {"id": "00631L", "name": "台灣50正2（00631L）", "tv": "TWSE_00631L",
      "session": "現貨盤", "pt": {"股數（1 張 = 1000 股）": 1000}, "unit": "元"},
+    {"id": "SRF", "name": "小型0050期貨（近月連續）", "tv": "TAIFEX_SRF1", "session": "全日盤",
+     "pt": {"小型0050": 1000}, "unit": "點"},
     {"id": "MNQ", "name": "小娜（微型那斯達克 MNQ）", "yahoo": "MNQ=F", "tv": "CME_MINI_MNQ1", "session": "CME 全時段",
      "pt": {"MNQ（美元）": 2, "NQ（美元）": 20}, "unit": "美元"},
     {"id": "YM", "name": "小道瓊（E-mini 道瓊 YM）", "yahoo": "YM=F", "tv": "CBOT_MINI_YM1", "session": "CBOT 全時段",
