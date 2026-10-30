@@ -20,7 +20,18 @@
   const LOG = false;
   const lg = (v) => (LOG && v > 0 ? Math.log(v) : v), ul = (v) => (LOG ? Math.exp(v) : v);
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "");
-  const getJSON = (u) => fetch(`${u}?v=${Date.now().toString(36)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const getLocal = (u) => fetch(`${u}?v=${Date.now().toString(36)}`,{cache:'no-store',signal:AbortSignal.timeout(6000)}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  // 分析資料直接讀 main 分支（每 5 分鐘重算後立即可見，不必等網站重新部署）；30 秒內重複讀用同一份，讀不到再用網站上的檔案
+  const RAW = "https://raw.githubusercontent.com/love030021-star/stock_chips/main/";
+  const RAW_MEMO = {};
+  const getJSON = (u) => {
+    if (!/^data\/(wave|strategy|bias)\.json$|^data\/markets\//.test(u)) return getLocal(u);
+    const m = RAW_MEMO[u];
+    if (m && Date.now() - m.t < 30000) return m.p;
+    const p = fetch(`${RAW}${u}?v=${Math.floor(Date.now() / 30000)}`, { signal: AbortSignal.timeout(6000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => j || getLocal(u));
+    RAW_MEMO[u] = { t: Date.now(), p };
+    return p;
+  };
 
   const usesBrokerMarket=id=>['TX','SRF'].includes(id)||Boolean(latestCapitalFeed?.contracts?.[id]);
   const futureProduct = id => id === 'TX' || id === 'SRF';
@@ -209,7 +220,7 @@
   // 台指期價乖離（同你 TV「正負價乖離」：前 5 個已完成交易日收盤平均 ×（1±5%/6%），每天 15:00 開盤後換新）
   let BIAS = null;
   async function loadBias() {
-    try { const r = await fetch("data/bias.json?_=" + Date.now()); if (r.ok) BIAS = await r.json(); } catch (e) { /* 沿用舊值 */ }
+    const j = await getJSON("data/bias.json"); if (j) BIAS = j;
     drawBias();
   }
   function drawBias() {
@@ -297,13 +308,13 @@
       return base.getTime() - 8 * 3600e3 - now;
     });
   }
-  // 各週期布局在自己的 K 棒收盤後重算（5 分每 5 分鐘、30 分每 30 分鐘、60 分每小時；排程約晚 3～5 分鐘）
+  // 各週期布局在自己的 K 棒收盤後重算（5 分每 5 分鐘、30 分每 30 分鐘、60 分每小時；收盤後約 1～2 分鐘）
   const PLAN_MIN = { M5: 5, M30: 30, H: 60 };
   function nextPlan() {
     const per = PLAN_MIN[state.stTf];
     if (per) return nextTpe((t, now) => {
       const m = t.getUTCHours() * 60 + t.getUTCMinutes(), b = new Date(t); b.setUTCSeconds(0, 0);
-      let next = Math.floor(m / per) * per + per + 4;
+      let next = Math.floor(m / per) * per + per + 2;
       if (next - per > m) next -= per;
       b.setUTCHours(0, next);
       return b.getTime() - 8 * 3600e3 - now;

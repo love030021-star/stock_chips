@@ -1,27 +1,24 @@
 name: 5 分布局更新
 
-# 每 5 分鐘：把 Worker 收到的 TradingView 15 秒價格（彙整成 5 分 K）併入，重算 5 分／30 分／60 分布局。
+# GitHub 的排程常常 40～50 分鐘才跑一次，所以這裡改成「一次跑約 5 小時 50 分、裡面自己每 5 分鐘重算」：
+# 每到 5 分整點後 40 秒，把 Worker 收到的 TradingView 15 秒價格（5 分 K）併入，重算 5 分／30 分／60 分布局並推上 main。
+# 網頁直接讀 main 分支上的最新資料，所以不必每次重新部署。排程每 30 分鐘確認一次，斷了就接上。
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
-  group: tv-update
-  cancel-in-progress: true
+  group: live5m
+  cancel-in-progress: false
 
 jobs:
-  rebuild:
+  loop:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -32,32 +29,25 @@ jobs:
       - name: 安裝套件
         run: pip install -r requirements.txt
 
-      - name: 重算各市場
+      - name: 每 5 分鐘重算
         env:
           TZ: Asia/Taipei
         run: |
-          python scripts/live_bars.py
-          python scripts/markets.py
-          python scripts/txf.py --no-fetch
-          python scripts/strategy.py
-          python scripts/bias.py
-
-      - name: 提交結果
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/store/tv data/markets data/store/markets data/store/txf data/wave.json data/strategy.json data/bias.json
-          if git diff --cached --quiet; then
-            echo "沒有變動"
-          else
-            git commit -m "5 分布局更新 $(TZ=Asia/Taipei date '+%F %H:%M')"
-            git pull --rebase -X theirs origin main || true
-            git push
-          fi
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - id: deploy
-        uses: actions/deploy-pages@v4
+          end=$(( $(date +%s) + 350*60 - 6*60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            python scripts/live_bars.py || true
+            python scripts/markets.py && python scripts/txf.py --no-fetch && python scripts/strategy.py && python scripts/bias.py || echo "重算失敗，下一輪再試"
+            git add data/store/tv data/markets data/store/markets data/store/txf data/wave.json data/strategy.json data/bias.json
+            if ! git diff --cached --quiet; then
+              git commit -q -m "5 分布局更新 $(date '+%F %H:%M')"
+              for i in 1 2 3; do
+                git push -q origin HEAD:main && break
+                git pull -q --rebase -X theirs origin main || { git rebase --abort; git reset -q --hard origin/main; break; }
+              done
+            fi
+            now=$(date +%s); next=$(( (now/300 + 1)*300 + 40 ))
+            sleep $(( next - now ))
+          done
