@@ -46,7 +46,8 @@ def regroup(m5: list, rows: list, sec: int) -> list:
 
 def main():
     since = int(time.time()) - 6 * 3600
-    with urllib.request.urlopen(f"{WORKER}?since={since}", timeout=20) as r:
+    req = urllib.request.Request(f"{WORKER}?since={since}", headers={"User-Agent": "Mozilla/5.0 stock_chips-live5m", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=20) as r:
         live = json.load(r)
     by = {}
     for x in live:
