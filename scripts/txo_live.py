@@ -79,10 +79,11 @@ def build(now):
     books = {}
     for g in lst[:4]:
         best, bd = None, 1e18
+        mid = lambda q: (q[3] + q[4]) / 2 if q and q[3] > 0 and q[4] > 0 else (q[0] if q else 0)   # 有買賣價用中間價，避免夜盤成交價停在舊價
         for k, r in g["s"].items():
-            c, p = r.get("C"), r.get("P")
-            if c and p and c[0] and p[0] and abs(c[0] - p[0]) < bd:
-                bd, best = abs(c[0] - p[0]), k
+            c, p = mid(r.get("C")), mid(r.get("P"))
+            if c and p and abs(c - p) < bd:
+                bd, best = abs(c - p), k
         px = (fut or {}).get("px") or best or 0
         rows = [[k, g["s"][k].get("C"), g["s"][k].get("P")] for k in sorted(g["s"]) if abs(k - px) <= 3000]
         books[g["exp"]] = {"ok": True, "mt": mt, "t": tm, "exp": g["exp"], "name": g["name"], "atm": best, "fut": fut, "rows": rows}
