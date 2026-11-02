@@ -1288,7 +1288,12 @@
     const sup = R.filter((r) => r[0] < px).sort((a, b) => b[2] - a[2]).slice(0, 3).sort((a, b) => b[0] - a[0]);
     let atm0 = null, bd = 1e18;
     R.forEach(([k, , , cp, pp]) => { if (cp != null && pp != null && Math.abs(cp - pp) < bd) { bd = Math.abs(cp - pp); atm0 = k; } });
-    return { res, sup, atm0 };
+    // SC／SP：前一日收盤上、下 1,500 點內 Call／Put 未平倉最大的履約價；開盤分界＝兩者中間
+    const near = R.filter((r) => Math.abs(r[0] - px) <= 1500);
+    const scR = near.filter((r) => r[0] >= px).sort((a, b) => b[1] - a[1])[0];
+    const spR = near.filter((r) => r[0] <= px).sort((a, b) => b[2] - a[2])[0];
+    const pivot = scR && spR ? Math.round((scR[0] + spR[0]) / 2) : null;
+    return { res, sup, atm0, sc: scR, sp: spR, pivot };
   }
   // 期交所行情網擋 Cloudflare，改由 GitHub 每 20 秒抓、放在 live 分支的 txo.json
   const LC_URL = "https://raw.githubusercontent.com/love030021-star/stock_chips/live/txo.json";
@@ -1330,14 +1335,16 @@
     if (book) {
       pain = lcPain(book); rg = lcRange(book, LC.opt.fut && LC.opt.fut.close || px);
       const s1 = rg.sup[0], r1 = rg.res[0];
-      rangeHtml += `<p>依 ${esc(LC.opt.date.slice(5).replace("-", "/"))} 收盤後的未平倉：</p><table>
+      const opn = open && open.fut;
+      rangeHtml += `${rg.sc && rg.sp ? `<div class="lc-sc"><span>SC <b>${fmt(rg.sc[0])}</b><small>Call ${fmt(rg.sc[1])} 口</small></span><span>SP <b>${fmt(rg.sp[0])}</b><small>Put ${fmt(rg.sp[2])} 口</small></span><span>開盤分界 <b>${fmt(rg.pivot)}</b>${opn ? `<small class="${opn >= rg.pivot ? "up" : "down"}">開盤 ${fp(opn)}：${opn >= rg.pivot ? "分界之上，偏多" : "分界之下，偏空"}</small>` : "<small>開盤後判斷</small>"}</span></div>` : ""}
+      <p>依 ${esc(LC.opt.date.slice(5).replace("-", "/"))} 收盤後的未平倉：</p><table>
         <tr><th>位置</th><th class="r">價位</th><th class="r">昨日未平倉</th></tr>
         ${rg.res.slice().reverse().map((r) => `<tr><td>壓力（Call）</td><td class="r">${fmt(r[0])}</td><td class="r">${fmt(r[1])}</td></tr>`).join("")}
         <tr><td>最大痛點</td><td class="r">${fmt(pain.best)}</td><td class="r">莊家最有利</td></tr>
         <tr><td>昨日價平</td><td class="r">${fp(rg.atm0)}</td><td class="r"></td></tr>
         ${rg.sup.map((r) => `<tr><td>支撐（Put）</td><td class="r">${fmt(r[0])}</td><td class="r">${fmt(r[2])}</td></tr>`).join("")}
       </table>
-      <p class="hint">今日參考區間 <b>${s1 ? fmt(s1[0]) : "—"}～${r1 ? fmt(r1[0]) : "—"}</b>（最近的 Put、Call 大量區）：跌破 Put 大量區代表支撐失守，站上 Call 大量區代表壓力被突破。</p>`;
+      <p class="hint">SC／SP：前一日收盤價上、下 1,500 點內 Call／Put 未平倉最大的履約價；開盤分界取兩者中間，開在分界之上偏多、之下偏空。今日參考區間 <b>${s1 ? fmt(s1[0]) : "—"}～${r1 ? fmt(r1[0]) : "—"}</b>（最近的 Put、Call 大量區）：跌破 Put 大量區代表支撐失守，站上 Call 大量區代表壓力被突破。</p>`;
     } else rangeHtml += `<p class="hint">這個契約沒有前一日未平倉資料（新掛牌或資料未更新）。</p>`;
     $("#lc-range").innerHTML = rangeHtml;
     // ---- 盤中變化與提醒 ----
