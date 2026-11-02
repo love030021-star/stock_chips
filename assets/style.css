@@ -405,3 +405,9 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .cd { flex-basis: 100%; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cd b { color: var(--ink, inherit); font-weight: 600; }
 .st-bias { margin: 12px 0; } .st-bias .st-head small { color: var(--muted); }
+
+.plan-svg .pj { fill: none; stroke: #2f6fb3; stroke-width: 2; stroke-dasharray: 4 4; }
+.plan-svg .pjp { fill: #2f6fb3; } .plan-svg .pjt { fill: #2f6fb3; font-size: 14px; font-weight: 800; } .plan-svg .pjv { fill: #2f6fb3; font-size: 11px; }
+.plan-svg .mj { fill: none; stroke: #7b4fb8; stroke-width: 3; stroke-dasharray: 10 6; opacity: .75; }
+.plan-svg .mjp { fill: #7b4fb8; } .plan-svg .mjt { fill: #7b4fb8; font-size: 13px; font-weight: 800; }
+.pf-legend .lg-m { border-top: 3px dashed #7b4fb8; height: 0; }

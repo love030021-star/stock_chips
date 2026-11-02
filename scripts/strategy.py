@@ -357,6 +357,52 @@ TF_LABEL = {"D": "日線", "H": "60 分", "M30": "30 分", "M5": "5 分"}
 UNIFY_WITH_WAVE = False
 
 
+def project(P: dict, last) -> list:
+    """整段推浪：從目前所在的浪往後推算尚未走完的浪（到 5 浪後的 A、B、C），回傳 [[浪名, 價位], ...]。
+    比例與布局的預估目標同一套：第 2 浪回 1 浪的 0.618、第 4 浪回 3 浪的 0.382，3、5 浪用第 1 浪長度延伸，ABC 以整段 1–5 浪回檔。"""
+    d, k = P.get("dir"), P.get("k")
+    if not d or k is None or P.get("phase") == "wait" or "推動浪" not in (P.get("trend") or ""):
+        return []
+    x = [p[1] for p in P.get("points") or []]
+    if len(x) < 2:
+        return []
+    seq = []
+
+    def abc(s0, e5):
+        a = rt(e5, s0, 0.382)
+        b = a + (e5 - a) * 0.5
+        c = b - (e5 - a)
+        return [["A", a], ["B", b], ["C", c]]
+
+    try:
+        if k == 1:
+            w2 = rt(x[1], x[0], 0.618)
+            w3 = P.get("t2") or lgx(w2, x[0], x[1], 1.618)   # 與布局的「第 3 浪預估目標」相同
+            w4 = rt(w3, w2, 0.382)
+            w5 = lgx(w4, x[0], x[1], 1.0)
+            seq = [["2", w2], ["3", w3], ["4", w4], ["5", w5]] + abc(x[0], w5)
+        elif k == 2:
+            w3 = P.get("t1") or lgx(x[2], x[0], x[1], 1.618)
+            w4 = rt(w3, x[2], 0.382)
+            w5 = lgx(w4, x[0], x[1], 1.0)
+            seq = [["3", w3], ["4", w4], ["5", w5]] + abc(x[0], w5)
+        elif k == 3:
+            w4 = rt(x[3], x[2], 0.382)
+            w5 = P.get("t2") or lgx(w4, x[0], x[1], 1.0)     # 與布局的「第 5 浪預估目標」相同
+            seq = [["4", w4], ["5", w5]] + abc(x[0], w5)
+        elif k == 4:
+            w5 = P.get("t1") or lgx(x[4], x[0], x[1], 1.0)
+            seq = [["5", w5]] + abc(x[0], w5)
+        elif k == 5:
+            seq = abc(x[0], x[5])
+    except (TypeError, ValueError, ZeroDivisionError):
+        return []
+    return [[n, r10(v)] for n, v in seq if v is not None and v > 0]
+
+
+MAJOR_OF = {"M5": ("M30", "H", "D"), "M30": ("H", "D"), "H": ("D",), "D": ()}
+
+
 def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
     """W：波浪推算結果（含 M5）；bars_by_tf：{"D"/"H"/"M30": {key: [o,h,l,c,...]}}；pt：每點價值。"""
     lw = W.get("M5") or W.get("H") or {}
@@ -412,6 +458,13 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
             P["signal"] = {"ok": False, "state": "none", "text": f"這個商品沒有 {TFN[et]} K，請自行確認 123。"}
         else:
             P["signal"] = rule123(hb, T["d"], P["points"][-1][0], P, TFN[et], TFN[tf])
+        P["proj"] = project(P, last)
+        for mt in MAJOR_OF[tf]:   # 大一級的整段浪：標在小週期圖上，看目前在大浪的哪一段
+            M = out["plans"].get(mt)
+            if M and M.get("dir") and "推動浪" in (M.get("trend") or "") and len(M.get("points") or []) >= 2:
+                P["major"] = {"tf": mt, "tf_label": M["tf_label"], "trend": M["trend"], "now": M["now"],
+                              "dir": M["dir"], "points": M["points"]}
+                break
         out["plans"][tf] = P
     out["last"], out["last_t"] = last, last_t or (major or {}).get("data_t")
     return out

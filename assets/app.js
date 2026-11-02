@@ -781,10 +781,16 @@
       T.items.push(Object.assign({ n: i + 1 }, b));
     });
     const tgt = P.phase === "trend" ? (P.k === 2 ? P.t1 : P.t2) : P.t1;
-    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...P.batches.map((b) => b.price), P.invalid, P.stop, tgt, last].filter((v) => v != null);
+    const PJ = P.proj || [];
+    // 大一級的整段浪：時間對到這張圖的 K 棒（早於圖左邊的轉折點貼在左緣）
+    const MJ = P.major && P.major.points ? P.major : null;
+    const atIdx = (t) => { for (let i = 0; i < n; i++) if (B[i][0] >= t) return i; return -1; };
+    const mjp = MJ ? MJ.points.filter((p) => p[0] >= B[0][0]).map((p) => [atIdx(p[0]), p[1], p[2]]).filter((p) => p[0] >= 0) : [];
+    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...P.batches.map((b) => b.price), P.invalid, P.stop, tgt, last, ...PJ.map((p) => p[1]), ...mjp.map((p) => p[1])].filter((v) => v != null);
     let lo = Math.min(...vals), hi = Math.max(...vals);
     const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
-    const Wd = 1000, Ht = 420, pl = 10, pr = 120, pt = 16, pb = 26, fut = 150;
+    const fut = PJ.length ? Math.min(420, 70 + PJ.length * 52) : 150;
+    const Wd = 1000 + (fut - 150), Ht = 420, pl = 10, pr = 120, pt = 16, pb = 26;
     const cw = (Wd - pl - pr - fut) / n;
     const lh = lg(hi), ll = lg(lo);
     const X = (i) => pl + cw * (i + 0.5), Y = (v) => pt + (lh - lg(v)) / (lh - ll) * (Ht - pt - pb);
@@ -824,7 +830,26 @@
       const inZ = P.zone[0] <= last && last <= P.zone[1];
       path = inZ ? `M${lx},${ly} L${lx + fut * 0.9},${Y(tgt)}` : `M${lx},${ly} L${lx + fut * 0.4},${Y(P.batches[0].price)} L${lx + fut * 0.9},${Y(tgt)}`;
     }
-    if (path) g += `<path d="${path}" class="pp"/>`;
+    if (MJ) {   // 大一級浪：較粗的虛線與 (1)(2)… 標號（只標落在這張圖時間內的轉折）
+      const big = (p) => (p[2] === "0" ? "大浪起點" : `(${p[2]})`);
+      if (mjp.length > 1) g += `<polyline points="${mjp.map((p) => `${X(p[0])},${Y(p[1])}`).join(" ")}" class="mj"/>`;
+      mjp.forEach((p, j) => {
+        const prev = mjp[j - 1], nxt = mjp[j + 1], ref = prev || nxt;
+        const high = ref ? p[1] >= ref[1] : true;
+        g += `<rect x="${X(p[0]) - 5}" y="${Y(p[1]) - 5}" width="10" height="10" class="mjp"/><text x="${X(p[0])}" y="${Y(p[1]) + (high ? -14 : 24)}" class="mjt" text-anchor="middle">${big(p)}</text>`;
+      });
+      g += `<text x="${pl + 4}" y="${pt + 12}" class="mjt">大一級 ${esc(MJ.tf_label)}：${esc(MJ.trend)}，${esc(MJ.now)}</text>`;
+    }
+    if (PJ.length) {   // 整段推浪：從現價依序推到 5 浪後的 A、B、C
+      const step = (fut - 20) / PJ.length;
+      const pts = [[lx, ly], ...PJ.map((p, i) => [lx + step * (i + 1), Y(p[1])])];
+      g += `<polyline points="${pts.map((q) => q.join(",")).join(" ")}" class="pj"/>`;
+      PJ.forEach((p, i) => {
+        const x = lx + step * (i + 1), y = Y(p[1]), prevV = i ? PJ[i - 1][1] : last;
+        const high = p[1] >= prevV;
+        g += `<circle cx="${x}" cy="${y}" r="3.5" class="pjp"/><text x="${x}" y="${y + (high ? -18 : 20)}" class="pjt" text-anchor="middle">${esc(p[0])}</text><text x="${x}" y="${y + (high ? -6 : 32)}" class="pjv" text-anchor="middle">${fp(p[1])}</text>`;
+      });
+    } else if (path) g += `<path d="${path}" class="pp"/>`;
     g += `<circle cx="${lx}" cy="${ly}" r="4.5" class="lp"/><text x="${lx + 8}" y="${ly - 8}" class="lt2">現價 ${fp(last)}</text>`;
     const tl = [0, Math.floor(n / 3), Math.floor(2 * n / 3), n - 1].map((i) => `<text x="${X(i)}" y="${Ht - 8}" class="tt" text-anchor="middle">${B[i][0].slice(2, 16).replace(/-/g, "/")}</text>`).join("");
     const svg = `<div class="plan-wrap"><svg class="plan-svg" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="${esc(P.tf_label)}波段布局圖">${g}${tl}</svg></div>`;
@@ -844,7 +869,9 @@
     steps.push(`<b>進場</b>：價格碰到某一批後，不直接${act}，要等 ${esc(P.entry_tf || "較小週期")} K 走出 123（第 3 點不破第 1 點、收盤${up ? "突破" : "跌破"}第 2 點）才進已碰到的批次。${G && G.text ? "目前：" + esc(G.text) : ""}`);
     if (P.invalid != null) steps.push(`<b>失效停損 ${fp(P.stop)}</b>（失效價 ${fp(P.invalid)}）：${esc(P.invalid_src || "")}。到這裡代表數浪被推翻；停損放在失效價外一點的 ${fp(P.stop)}，${up ? "跌破" : "漲破"}就全部出場。${P.dropped && P.dropped.length ? `比失效停損更深的 ${esc(P.dropped.join("、"))} 不布局。` : ""}`);
     steps.push(`<b>目標</b>：目標 1 ${fp(P.t1)}（${esc(P.t1_src)}），目標 2 ${fp(P.t2)}（${esc(P.t2_src)}）。`);
-    const legend = `<div class="pf-legend"><span><i class="lg-z"></i>${wname}三層（越深顏色越濃）</span><span><i class="lg-w"></i>波浪轉折</span><span><i class="lg-p"></i>預期路徑</span><span><i class="lg-i"></i>失效停損</span><span><i class="lg-t"></i>${P.phase === "trend" ? "預估終點" : "目標 1"}</span></div>`;
+    if (PJ.length) steps.push(`<b>整段推浪</b>（圖右虛線）：${PJ.map((p) => `${/^\d$/.test(p[0]) ? "第 " + p[0] + " 浪" : p[0] + " 浪"} ${fp(p[1])}`).join(" → ")}。依目前數浪機械推算，實際走勢出來後每次重算。`);
+    if (MJ) steps.push(`<b>大一級（${esc(MJ.tf_label)}）</b>：${esc(MJ.trend)}，目前「${esc(MJ.now)}」；圖上方塊與 (1)(2)… 標號是大浪轉折，${MJ.dir === P.dir ? "這段小浪順著大浪方向" : "這段小浪逆著大浪方向，屬於大浪裡的修正"}。`);
+    const legend = `<div class="pf-legend"><span><i class="lg-z"></i>${wname}三層（越深顏色越濃）</span><span><i class="lg-w"></i>波浪轉折</span><span><i class="lg-p"></i>${PJ.length ? "整段推浪" : "預期路徑"}</span>${MJ ? `<span><i class="lg-m"></i>大一級浪（${esc(MJ.tf_label)}）</span>` : ""}<span><i class="lg-i"></i>失效停損</span><span><i class="lg-t"></i>${P.phase === "trend" ? "預估終點" : "目標 1"}</span></div>`;
     return `<div class="st-head"><h3>${esc(P.tf_label)}布局圖解</h3></div>${svg}${legend}<ol class="pf-steps">${steps.map((x) => `<li>${x}</li>`).join("")}</ol>`;
   }
 
