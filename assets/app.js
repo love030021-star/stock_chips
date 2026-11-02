@@ -666,7 +666,7 @@
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(); });
     window.addEventListener("pageshow", (e) => { if (e.persisted) checkUpdate(true); });
     window.addEventListener("focus", () => checkUpdate());
-    setInterval(() => { if (document.visibilityState === "visible") checkUpdate(true); }, 10 * 60 * 1000);
+    setInterval(() => { if (document.visibilityState === "visible") checkUpdate(true); }, 2 * 60 * 1000);
   }
 
   // ---------- 波段逆勢布局 ----------
