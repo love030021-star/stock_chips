@@ -106,7 +106,8 @@ def main():
     last_min = None
     while time.time() < end:
         now = datetime.now(TPE)
-        if not open_now(now):
+        once = len(sys.argv) > 2 and sys.argv[2] == "once"
+        if not open_now(now) and not once:
             time.sleep(60)
             continue
         try:
@@ -128,6 +129,8 @@ def main():
         out = dict(data, series=state["series"], snaps=state["snaps"], updated=int(time.time()))
         p.write_text(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
         push()
+        if once:
+            break
         time.sleep(max(5, 20 - (time.time() % 20)))
 
 
