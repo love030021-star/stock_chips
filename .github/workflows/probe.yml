@@ -1,0 +1,18 @@
+name: probe-taifex
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir out && cd out
+          for mt in 0 1; do
+          curl -s -m 20 -X POST https://mis.taifex.com.tw/futures/api/getQuoteList -H 'Content-Type: application/json' -H 'User-Agent: Mozilla/5.0' \
+            -d "{\"MarketType\":\"$mt\",\"SymbolType\":\"O\",\"KindID\":\"1\",\"CID\":\"TXO\",\"ExpireMonth\":\"\",\"RowSize\":\"全部\",\"PageNo\":\"\",\"SortColumn\":\"\",\"AscDesc\":\"A\"}" > txo_$mt.json
+          curl -s -m 20 -X POST https://mis.taifex.com.tw/futures/api/getCmdyDDLItemByKind -H 'Content-Type: application/json' -H 'User-Agent: Mozilla/5.0' -d "{\"SymbolID\":\"TXO\",\"MarketType\":\"$mt\",\"KindID\":\"1\",\"CID\":\"TXO\",\"ExpireMonth\":\"\",\"RowSize\":\"全部\",\"PageNo\":\"\",\"SortColumn\":\"\",\"AscDesc\":\"A\"}" > ddl_$mt.json
+          done
+          curl -s -m 20 -X POST https://mis.taifex.com.tw/futures/api/getCmdyMonthDDL -H 'Content-Type: application/json' -H 'User-Agent: Mozilla/5.0' -d '{"CID":"TXO","SymbolType":"O","KindID":"1","MarketType":"0"}' > month.json
+          ls -la
+          cd .. && git init -q pr && cp out/* pr/ && cd pr && git checkout -q -b probe && git add . && git -c user.name=bot -c user.email=b@b commit -qm probe && git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" probe
