@@ -1290,28 +1290,30 @@
     R.forEach(([k, , , cp, pp]) => { if (cp != null && pp != null && Math.abs(cp - pp) < bd) { bd = Math.abs(cp - pp); atm0 = k; } });
     return { res, sup, atm0 };
   }
+  // 期交所行情網擋 Cloudflare，改由 GitHub 每 20 秒抓、放在 live 分支的 txo.json
+  const LC_URL = "https://raw.githubusercontent.com/love030021-star/stock_chips/live/txo.json";
   async function lcPoll() {
     if (document.hidden) return;
     try {
-      const q = LC.exp ? `?exp=${LC.exp}` : "";
-      const o = await (await fetch(`${QW}/txo${q}&_=${Date.now()}`.replace("txo&", "txo?"), { cache: "no-store" })).json();
-      if (!o || !o.ok) { $("#lc-meta").textContent = "期交所行情暫時讀不到，稍後自動重試。"; return; }
-      LC.o = o;
-      const sel = $("#lc-exp");
-      if (sel.options.length !== o.list.length) sel.innerHTML = o.list.map(([e, n, v]) => `<option value="${e}">${esc(n)}（量 ${fmt(v)}）</option>`).join("");
-      sel.value = o.exp;
-      lcDraw();
-    } catch (e) { $("#lc-meta").textContent = "期交所行情暫時讀不到，稍後自動重試。"; }
-  }
-  async function lcPollHist() {
-    if (document.hidden) return;
-    try {
+      const D = await (await fetch(`${LC_URL}?t=${Math.floor(Date.now() / 10000)}`, { cache: "no-store" })).json();
+      if (!D || !D.books) { $("#lc-meta").textContent = "盤中籌碼資料尚未產生（收盤時段不更新）。"; return; }
+      const exp = LC.exp && D.books[LC.exp] ? LC.exp : D.main;
+      const o = D.books[exp];
+      if (!o) { $("#lc-meta").textContent = "盤中籌碼資料尚未產生（收盤時段不更新）。"; return; }
+      o.list = D.list;
+      LC.o = o; LC.D = D;
       const s0 = lcSessStart();
-      LC.series = (await (await fetch(`${QW}/txoh?since=${s0}&_=${Date.now()}`, { cache: "no-store" })).json()) || [];
+      LC.series = (D.series || []).filter((r) => r[0] >= s0).map(([t, e, fut, atm, cv, pv]) => ({ t, exp: e, fut, atm, cv, pv }));
       const at = Math.floor(Date.now() / 1000) - 900;
-      LC.prev = at > s0 ? await (await fetch(`${QW}/txoh?at=${at}&_=${Date.now()}`, { cache: "no-store" })).json() : null;
+      const ks = Object.keys(D.snaps || {}).map(Number).filter((t) => t <= at && t >= Math.max(s0, at - 600)).sort((x, y) => y - x);
+      LC.prev = ks.length ? D.snaps[ks[0]] : null;
+      LC.age = D.updated ? Math.round(Date.now() / 1000 - D.updated) : null;
+      const sel = $("#lc-exp");
+      const avail = D.list.filter(([e]) => D.books[e]);
+      if (sel.options.length !== avail.length) sel.innerHTML = avail.map(([e, n, v]) => `<option value="${e}">${esc(n)}（量 ${fmt(v)}）</option>`).join("");
+      sel.value = exp;
       lcDraw();
-    } catch (e) { /* 下一輪再試 */ }
+    } catch (e) { $("#lc-meta").textContent = "盤中籌碼暫時讀不到，稍後自動重試。"; }
   }
   function lcDraw() {
     const o = LC.o; if (!o) return;
@@ -1321,7 +1323,7 @@
     const open = ser[0];
     const tt = String(o.t || "");
     const tStr = tt.length >= 12 ? `${tt.slice(4, 6)}/${tt.slice(6, 8)} ${tt.slice(8, 10)}:${tt.slice(10, 12)}` : "";
-    $("#lc-meta").innerHTML = `${o.mt === "1" ? "夜盤" : "日盤"} · ${esc(o.name)} · 台指期 <b>${fp(fut)}</b> · 價平 <b>${fp(o.atm)}</b>${open && open.atm && open.atm !== o.atm ? `（開盤 ${fp(open.atm)}，${o.atm > open.atm ? "上移" : "下移"} ${fmt(Math.abs(o.atm - open.atm))}）` : ""} · 期交所時間 ${esc(tStr)}`;
+    $("#lc-meta").innerHTML = `${o.mt === "1" ? "夜盤" : "日盤"} · ${esc(o.name)} · 台指期 <b>${fp(fut)}</b> · 價平 <b>${fp(o.atm)}</b>${open && open.atm && open.atm !== o.atm ? `（開盤 ${fp(open.atm)}，${o.atm > open.atm ? "上移" : "下移"} ${fmt(Math.abs(o.atm - open.atm))}）` : ""} · 期交所時間 ${esc(tStr)}${LC.age != null && LC.age > 180 ? `（資料 ${Math.round(LC.age / 60)} 分鐘前，可能已收盤）` : ""}`;
     // ---- 盤前區間 ----
     let rangeHtml = `<div class="st-head"><h3>盤前區間提醒</h3></div>`;
     let pain = null, rg = null;
@@ -1386,8 +1388,8 @@
       <tr><th class="r">昨 OI</th><th class="r">成交量</th><th class="r">15 分增量</th><th class="r">成交價</th><th>履約價</th><th class="r">成交價</th><th class="r">15 分增量</th><th class="r">成交量</th><th class="r">昨 OI</th><th class="r">莊家損益</th></tr></thead><tbody>${trs}</tbody></table>`;
   }
   $("#lc-exp").addEventListener("change", (e) => { LC.exp = e.target.value; lcPoll(); });
-  lcLoadOpt().then(() => { lcPoll(); lcPollHist(); });
-  setInterval(lcPoll, 15000); setInterval(lcPollHist, 60000); setInterval(lcLoadOpt, 600000);
+  lcLoadOpt().then(lcPoll);
+  setInterval(lcPoll, 15000); setInterval(lcLoadOpt, 600000);
 })();
 
 

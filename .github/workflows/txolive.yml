@@ -1,0 +1,36 @@
+name: 盤中即時籌碼
+
+# 期交所行情網擋 Cloudflare Worker，所以改在 GitHub 上每 20 秒抓台指週選與台指期，推到 live 分支的 txo.json（網頁直接讀）。
+# 一次跑約 5 小時 40 分；排程每 30 分鐘確認一次，斷了就接上。收盤時段只等待不抓。
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: txolive
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: 準備 live 分支
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          url="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          if git ls-remote --exit-code "$url" live >/dev/null 2>&1; then
+            git clone -q --depth 1 --branch live "$url" live_out
+          else
+            mkdir live_out && cd live_out && git init -q && git checkout -q -b live && git remote add origin "$url" && echo '{}' > txo.json && git add . && git commit -q -m live
+          fi
+      - name: 每 20 秒更新
+        env:
+          TZ: Asia/Taipei
+        run: python scripts/txo_live.py 340
