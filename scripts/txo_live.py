@@ -69,7 +69,9 @@ def build(now):
     fut = None
     try:
         F = post(mt, "F", "TXF")
-        q = next((x for x in F if re.search(r"-F$", x.get("SymbolID") or "") and f(x.get("CLastPrice"))), None)
+        q = next((x for x in F if re.search(r"-F$", x.get("SymbolID") or "") and f(x.get("CLastPrice"))), None) or \
+            next((x for x in F if (x.get("SymbolID") or "").startswith("TXF") and not (x.get("SymbolID") or "").endswith("-S")
+                  and f(x.get("CLastPrice"))), None)
         if q:
             fut = {"px": f(q["CLastPrice"]), "chg": f(q.get("CDiffRate")), "d": q.get("CDate"), "t": q.get("CTime")}
     except Exception as e:  # noqa: BLE001
