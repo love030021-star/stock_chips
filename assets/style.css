@@ -420,8 +420,3 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .lc-t tr.fut td.k { outline: 2px solid #C98A0B; }
 .lc-t td.inc { color: #7b4fb8; font-weight: 700; } .lc-t td.pain { color: var(--muted); } .lc-t td.pain.best { color: #8a1c1c; font-weight: 800; }
 .lc-al { margin: 0; padding-left: 18px; } .lc-al li { margin: 6px 0; line-height: 1.5; } .lc-al li.up { color: var(--up); } .lc-al li.down { color: var(--down); }
-
-.lc-sc { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.lc-sc span { flex: 1 1 120px; background: rgba(47,111,179,.08); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
-.lc-sc b { display: block; font-size: 20px; font-family: var(--num); } .lc-sc small { display: block; color: var(--muted); }
-.lc-sc small.up { color: var(--up); font-weight: 700; } .lc-sc small.down { color: var(--down); font-weight: 700; }
