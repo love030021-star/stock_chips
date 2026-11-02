@@ -1255,6 +1255,139 @@
   document.querySelectorAll("main section[id]").forEach((s) => io.observe(s));
 
   load().catch(error=>{if(CAPITAL_ONLY)showAnalysisError(error);else console.error(error);});
+
+  // ===================== 盤中即時籌碼（台指週選）=====================
+  const LC = { o: null, opt: null, series: [], prev: null, exp: "", timer: 0 };
+  async function lcLoadOpt() {
+    const c = await getLocal("data/chips.json");
+    LC.opt = c && c.opt ? c : null;
+  }
+  const lcSessStart = () => {   // 目前盤別的開盤時間（unix 秒）：日盤 08:45、夜盤 15:00
+    const now = new Date(Date.now() + 8 * 3600e3), m = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    let start;
+    if (m >= 525 && m < 900) start = d.getTime() / 1000 + 525 * 60;
+    else if (m >= 900) start = d.getTime() / 1000 + 900 * 60;
+    else start = d.getTime() / 1000 - 86400 + 900 * 60;
+    return start - 8 * 3600;
+  };
+  function lcBook() {   // 前一日未平倉與結算價（對應目前選的到期日）
+    const o = LC.o; if (!LC.opt || !o) return null;
+    return LC.opt.opt.find((b) => b.exp === o.exp) || null;
+  }
+  function lcPain(book) {
+    const R = book.rows;
+    const pnl = (S) => R.reduce((a, [k, c, p, cp, pp]) => a + c * ((cp || 0) - Math.max(0, S - k)) + p * ((pp || 0) - Math.max(0, k - S)), 0) * 50 / 1e4;
+    const M = {}; let best = null;
+    R.forEach((r) => { M[r[0]] = pnl(r[0]); if (best == null || M[r[0]] > M[best]) best = r[0]; });
+    return { M, best };
+  }
+  function lcRange(book, px) {
+    const R = book.rows;
+    const res = R.filter((r) => r[0] > px).sort((a, b) => b[1] - a[1]).slice(0, 3).sort((a, b) => a[0] - b[0]);
+    const sup = R.filter((r) => r[0] < px).sort((a, b) => b[2] - a[2]).slice(0, 3).sort((a, b) => b[0] - a[0]);
+    let atm0 = null, bd = 1e18;
+    R.forEach(([k, , , cp, pp]) => { if (cp != null && pp != null && Math.abs(cp - pp) < bd) { bd = Math.abs(cp - pp); atm0 = k; } });
+    return { res, sup, atm0 };
+  }
+  async function lcPoll() {
+    if (document.hidden) return;
+    try {
+      const q = LC.exp ? `?exp=${LC.exp}` : "";
+      const o = await (await fetch(`${QW}/txo${q}&_=${Date.now()}`.replace("txo&", "txo?"), { cache: "no-store" })).json();
+      if (!o || !o.ok) { $("#lc-meta").textContent = "期交所行情暫時讀不到，稍後自動重試。"; return; }
+      LC.o = o;
+      const sel = $("#lc-exp");
+      if (sel.options.length !== o.list.length) sel.innerHTML = o.list.map(([e, n, v]) => `<option value="${e}">${esc(n)}（量 ${fmt(v)}）</option>`).join("");
+      sel.value = o.exp;
+      lcDraw();
+    } catch (e) { $("#lc-meta").textContent = "期交所行情暫時讀不到，稍後自動重試。"; }
+  }
+  async function lcPollHist() {
+    if (document.hidden) return;
+    try {
+      const s0 = lcSessStart();
+      LC.series = (await (await fetch(`${QW}/txoh?since=${s0}&_=${Date.now()}`, { cache: "no-store" })).json()) || [];
+      const at = Math.floor(Date.now() / 1000) - 900;
+      LC.prev = at > s0 ? await (await fetch(`${QW}/txoh?at=${at}&_=${Date.now()}`, { cache: "no-store" })).json() : null;
+      lcDraw();
+    } catch (e) { /* 下一輪再試 */ }
+  }
+  function lcDraw() {
+    const o = LC.o; if (!o) return;
+    const fut = o.fut && o.fut.px, px = fut || o.atm;
+    const book = lcBook();
+    const ser = (LC.series || []).filter((r) => r.exp === o.exp);
+    const open = ser[0];
+    const tt = String(o.t || "");
+    const tStr = tt.length >= 12 ? `${tt.slice(4, 6)}/${tt.slice(6, 8)} ${tt.slice(8, 10)}:${tt.slice(10, 12)}` : "";
+    $("#lc-meta").innerHTML = `${o.mt === "1" ? "夜盤" : "日盤"} · ${esc(o.name)} · 台指期 <b>${fp(fut)}</b> · 價平 <b>${fp(o.atm)}</b>${open && open.atm && open.atm !== o.atm ? `（開盤 ${fp(open.atm)}，${o.atm > open.atm ? "上移" : "下移"} ${fmt(Math.abs(o.atm - open.atm))}）` : ""} · 期交所時間 ${esc(tStr)}`;
+    // ---- 盤前區間 ----
+    let rangeHtml = `<div class="st-head"><h3>盤前區間提醒</h3></div>`;
+    let pain = null, rg = null;
+    if (book) {
+      pain = lcPain(book); rg = lcRange(book, LC.opt.fut && LC.opt.fut.close || px);
+      const s1 = rg.sup[0], r1 = rg.res[0];
+      rangeHtml += `<p>依 ${esc(LC.opt.date.slice(5).replace("-", "/"))} 收盤後的未平倉：</p><table>
+        <tr><th>位置</th><th class="r">價位</th><th class="r">昨日未平倉</th></tr>
+        ${rg.res.slice().reverse().map((r) => `<tr><td>壓力（Call）</td><td class="r">${fmt(r[0])}</td><td class="r">${fmt(r[1])}</td></tr>`).join("")}
+        <tr><td>最大痛點</td><td class="r">${fmt(pain.best)}</td><td class="r">莊家最有利</td></tr>
+        <tr><td>昨日價平</td><td class="r">${fp(rg.atm0)}</td><td class="r"></td></tr>
+        ${rg.sup.map((r) => `<tr><td>支撐（Put）</td><td class="r">${fmt(r[0])}</td><td class="r">${fmt(r[2])}</td></tr>`).join("")}
+      </table>
+      <p class="hint">今日參考區間 <b>${s1 ? fmt(s1[0]) : "—"}～${r1 ? fmt(r1[0]) : "—"}</b>（最近的 Put、Call 大量區）：跌破 Put 大量區代表支撐失守，站上 Call 大量區代表壓力被突破。</p>`;
+    } else rangeHtml += `<p class="hint">這個契約沒有前一日未平倉資料（新掛牌或資料未更新）。</p>`;
+    $("#lc-range").innerHTML = rangeHtml;
+    // ---- 盤中變化與提醒 ----
+    const A = [];
+    const prevD = LC.prev && LC.prev.exp === o.exp ? LC.prev.d : null;
+    if (rg && px) {
+      const s1 = rg.sup[0], r1 = rg.res[0];
+      if (s1 && px < s1[0]) A.push(["down", `台指期 ${fp(px)} 已跌破第一支撐 ${fmt(s1[0])}（昨 OI ${fmt(s1[2])} 口），觀察是否出現止跌；下一個支撐 ${rg.sup[1] ? fmt(rg.sup[1][0]) : "—"}。`]);
+      if (r1 && px > r1[0]) A.push(["up", `台指期 ${fp(px)} 已站上第一壓力 ${fmt(r1[0])}（昨 OI ${fmt(r1[1])} 口），賣 Call 方可能被迫回補。`]);
+      if (s1 && px >= s1[0] && px - s1[0] <= 150) A.push(["down", `接近支撐 ${fmt(s1[0])}，距離 ${fmt(px - s1[0])} 點。`]);
+      if (r1 && px <= r1[0] && r1[0] - px <= 150) A.push(["up", `接近壓力 ${fmt(r1[0])}，距離 ${fmt(r1[0] - px)} 點。`]);
+    }
+    if (open && open.atm && o.atm && Math.abs(o.atm - open.atm) >= 100) A.push([o.atm > open.atm ? "up" : "down", `價平從開盤 ${fmt(open.atm)} ${o.atm > open.atm ? "上移" : "下移"}到 ${fmt(o.atm)}（${fmt(Math.abs(o.atm - open.atm))} 點），市場重心${o.atm > open.atm ? "上移" : "下移"}。`]);
+    const cvT = o.rows.reduce((a, r) => a + (r[1] ? r[1][1] : 0), 0), pvT = o.rows.reduce((a, r) => a + (r[2] ? r[2][1] : 0), 0);
+    if (cvT) {
+      const ratio = pvT / cvT, r0 = open && open.cv ? open.pv / open.cv : null;
+      A.push([ratio > 1 ? "down" : "up", `Put／Call 成交量比 ${ratio.toFixed(2)}${r0 != null && open.cv > 500 ? `（開盤時 ${r0.toFixed(2)}）` : ""}：${ratio > 1.2 ? "Put 成交明顯較多，避險或看空情緒較重" : ratio < 0.8 ? "Call 成交明顯較多，追價或看多情緒較重" : "多空成交相當"}。`]);
+    }
+    const inc = [];
+    if (prevD) o.rows.forEach(([k, c, p]) => { const pv = prevD[k]; if (!pv) return; if (c) inc.push([k, "Call", c[1] - pv[0]]); if (p) inc.push([k, "Put", p[1] - pv[1]]); });
+    inc.sort((a, b) => b[2] - a[2]);
+    if (inc.length && inc[0][2] > 0) A.push(["", `近 15 分鐘成交最集中：${inc.slice(0, 3).filter((x) => x[2] > 0).map((x) => `${fmt(x[0])} ${x[1]} +${fmt(x[2])} 口`).join("、")}。`]);
+    if (book) {
+      const oi = {}; book.rows.forEach((r) => { oi[r[0]] = r; });
+      const big = [];
+      o.rows.forEach(([k, c, p]) => { const b = oi[k]; if (!b) return; if (c && b[1] >= 300 && c[1] > b[1]) big.push(`${fmt(k)} Call（量 ${fmt(c[1])} > 昨 OI ${fmt(b[1])}）`); if (p && b[2] >= 300 && p[1] > b[2]) big.push(`${fmt(k)} Put（量 ${fmt(p[1])} > 昨 OI ${fmt(b[2])}）`); });
+      if (big.length) A.push(["", `今日成交已超過昨日未平倉，籌碼可能大換手：${big.slice(0, 4).join("、")}。`]);
+      if (pain && px) A.push(["", `最大痛點 ${fmt(pain.best)}，台指期${px > pain.best ? "高於" : "低於"}痛點 ${fmt(Math.abs(px - pain.best))} 點；越接近結算，價格越容易被拉向痛點。`]);
+    }
+    $("#lc-alerts").innerHTML = `<div class="st-head"><h3>盤中變化</h3></div><ul class="lc-al">${A.map(([c, t]) => `<li class="${c}">${esc(t)}</li>`).join("") || "<li>等待成交資料。</li>"}</ul>`;
+    // ---- 各履約價表 ----
+    const oiMap = {}; if (book) book.rows.forEach((r) => { oiMap[r[0]] = r; });
+    const ks = o.rows.map((r) => r[0]);
+    let ai = ks.indexOf(o.atm); if (ai < 0) ai = Math.floor(ks.length / 2);
+    const show = o.rows.slice(Math.max(0, ai - 10), ai + 11);
+    const chg = (x) => x && x[2] ? `<small class="${x[0] >= x[2] ? "up" : "down"}">${x[0] >= x[2] ? "+" : ""}${fmt(x[0] - x[2], x[0] < 10 ? 1 : 0)}</small>` : "";
+    const dv = (k, i, cur) => { const pv = prevD && prevD[k]; if (!pv || !cur) return ""; const d = cur[1] - pv[i]; return d ? fmt(d) : ""; };
+    const pmax = pain ? Math.max(...show.map((r) => pain.M[r[0]] ?? -Infinity)) : null;
+    const trs = show.map(([k, c, p]) => {
+      const b = oiMap[k], isA = k === o.atm, pm = pain && pain.M[k];
+      return `<tr class="${isA ? "atm" : ""}${fut && Math.abs(k - fut) < 25 ? " fut" : ""}">
+        <td class="r">${b ? fmt(b[1]) : ""}</td><td class="r">${c ? fmt(c[1]) : ""}</td><td class="r inc">${dv(k, 0, c)}</td><td class="r">${c ? fmt(c[0], c[0] < 10 ? 1 : 0) : ""} ${chg(c)}</td>
+        <td class="k">${fmt(k)}</td>
+        <td class="r">${p ? fmt(p[0], p[0] < 10 ? 1 : 0) : ""} ${chg(p)}</td><td class="r inc">${dv(k, 1, p)}</td><td class="r">${p ? fmt(p[1]) : ""}</td><td class="r">${b ? fmt(b[2]) : ""}</td>
+        <td class="r pain${pain && k === pain.best ? " best" : ""}">${pm != null ? fmt(pm) : ""}</td></tr>`;
+    }).join("");
+    $("#lc-table").innerHTML = `<table class="lc-t"><thead><tr><th colspan="4" class="c">買權 Call</th><th></th><th colspan="4" class="c">賣權 Put</th><th></th></tr>
+      <tr><th class="r">昨 OI</th><th class="r">成交量</th><th class="r">15 分增量</th><th class="r">成交價</th><th>履約價</th><th class="r">成交價</th><th class="r">15 分增量</th><th class="r">成交量</th><th class="r">昨 OI</th><th class="r">莊家損益</th></tr></thead><tbody>${trs}</tbody></table>`;
+  }
+  $("#lc-exp").addEventListener("change", (e) => { LC.exp = e.target.value; lcPoll(); });
+  lcLoadOpt().then(() => { lcPoll(); lcPollHist(); });
+  setInterval(lcPoll, 15000); setInterval(lcPollHist, 60000); setInterval(lcLoadOpt, 600000);
 })();
 
 

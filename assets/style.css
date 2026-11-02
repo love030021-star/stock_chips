@@ -411,3 +411,12 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .plan-svg .mj { fill: none; stroke: #7b4fb8; stroke-width: 3; stroke-dasharray: 10 6; opacity: .75; }
 .plan-svg .mjp { fill: #7b4fb8; } .plan-svg .mjt { fill: #7b4fb8; font-size: 13px; font-weight: 800; }
 .pf-legend .lg-m { border-top: 3px dashed #7b4fb8; height: 0; }
+
+.lc-tablewrap { overflow-x: auto; margin-top: 12px; }
+.lc-t { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; min-width: 720px; }
+.lc-t th, .lc-t td { padding: 4px 6px; border-top: 1px solid var(--line); white-space: nowrap; }
+.lc-t th.c { text-align: center; } .lc-t td.k { text-align: center; font-weight: 800; background: rgba(201,138,11,.12); }
+.lc-t tr.atm td { background: rgba(47,111,179,.12); } .lc-t tr.atm td.k { background: #2f6fb3; color: #fff; }
+.lc-t tr.fut td.k { outline: 2px solid #C98A0B; }
+.lc-t td.inc { color: #7b4fb8; font-weight: 700; } .lc-t td.pain { color: var(--muted); } .lc-t td.pain.best { color: #8a1c1c; font-weight: 800; }
+.lc-al { margin: 0; padding-left: 18px; } .lc-al li { margin: 6px 0; line-height: 1.5; } .lc-al li.up { color: var(--up); } .lc-al li.down { color: var(--down); }

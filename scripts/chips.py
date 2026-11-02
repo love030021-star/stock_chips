@@ -217,6 +217,25 @@ def walls(strikes: dict, data_date: str, price: float):
     return out
 
 
+def opt_books(strikes: dict, data_date: str, price: float, n: int = 4):
+    """最近幾個到期契約的各履約價前一日未平倉與結算價（盤中即時籌碼用：比對當日成交、算莊家損益）。"""
+    d0 = data_date.replace("-", "")
+    near = sorted([(k, v) for k, v in strikes.items() if v["exp"] > d0], key=lambda kv: kv[1]["exp"])[:n]
+    out = []
+    for name, v in near:
+        ks = sorted({int(k) for k in list(v["C"]) + list(v["P"])})
+        rows = []
+        for k in ks:
+            if abs(k - price) > 5000:
+                continue
+            c, p_ = v["C"].get(k, 0), v["P"].get(k, 0)
+            cpx = v.get("Cpx", {}).get(k)
+            ppx = v.get("Ppx", {}).get(k)
+            rows.append([k, c or 0, p_ or 0, cpx, ppx])
+        out.append({"contract": name, "exp": f"{v['exp'][:4]}-{v['exp'][4:6]}-{v['exp'][6:]}", "rows": rows})
+    return out
+
+
 # ======================= 文字分析 =======================
 
 def fmt(n):
@@ -376,6 +395,7 @@ def build(large, inst, strikes, fut_daily, index_by_date):
            "net": net, "cp": cp_rows, "synth": synth, "total": total}
     if strikes and fut["close"]:
         cur["walls"] = walls(strikes, d, fut["close"])
+        cur["opt"] = opt_books(strikes, d, fut["close"])
         tc = sum(sum(v["C"].values()) for v in strikes.values())
         tp = sum(sum(v["P"].values()) for v in strikes.values())
         cur["pcr"] = round(tp / tc * 100, 1) if tc else None
@@ -445,7 +465,9 @@ def run(root: Path, fetch=True):
     # json 的 key 是字串，履約價轉回數字
     if strikes:
         strikes = {k: {"exp": v["exp"], "C": {int(a): b for a, b in v["C"].items()},
-                       "P": {int(a): b for a, b in v["P"].items()}} for k, v in strikes.items()}
+                       "P": {int(a): b for a, b in v["P"].items()},
+                       "Cpx": {int(a): b for a, b in (v.get("Cpx") or {}).items()},
+                       "Ppx": {int(a): b for a, b in (v.get("Ppx") or {}).items()}} for k, v in strikes.items()}
     large = {d: {cp: {m: {int(t): v for t, v in mm.items()} for m, mm in x.items()} for cp, x in day.items()}
              for d, day in large.items()}
     out = build(large, inst, strikes, fut_daily, index_by_date)
