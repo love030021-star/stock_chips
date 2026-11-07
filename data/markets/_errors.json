@@ -1,1 +1,1 @@
-{"at":"2026-11-07T11:18+08:00","errors":{"TWII":"Expecting value: line 1 column 1 (char 0)"}}
+{"at":"2026-11-07T11:31+08:00","errors":{"TWII":"GET https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST 失敗：HTTPSConnectionPool(host='www.twse.com.tw', port=443): Read timed out. (read timeout=40)"}}
