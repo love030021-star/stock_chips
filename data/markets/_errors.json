@@ -1,1 +1,1 @@
-{"at":"2026-11-07T11:54+08:00","errors":{"TWII":"GET https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST 失敗：HTTPSConnectionPool(host='www.twse.com.tw', port=443): Read timed out. (read timeout=40)"}}
+{"at":"2026-11-07T12:01+08:00","errors":{"TWII":"GET https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST 失敗：HTTPSConnectionPool(host='www.twse.com.tw', port=443): Read timed out. (read timeout=40)"}}
