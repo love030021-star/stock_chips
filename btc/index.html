@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>比特幣策略模擬盤</title>
+<style>
+/* 版面：單欄儀表板，摘要在上、細節可展開；沿用使用者範例的深藍板＋青綠點綴 */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --card:#eef1f6; --line:#d6dce6;
+  --fg:#18202c; --muted:#5b6678; --accent:#0f8f7e;
+  --up:#16865f; --down:#c8433f; --warn:#a86b00;
+  --display:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121722; --panel:#1f2838; --card:#18202e; --line:#2e394c;
+  --fg:#e6ebf2; --muted:#9aa6b8; --accent:#4fd1b5; --up:#3ccf8e; --down:#ff6b6b; --warn:#f2b84b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121722; --panel:#1f2838; --card:#18202e; --line:#2e394c;
+  --fg:#e6ebf2; --muted:#9aa6b8; --accent:#4fd1b5; --up:#3ccf8e; --down:#ff6b6b; --warn:#f2b84b; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;font-size:14px;background:var(--bg);color:var(--fg);font-family:var(--display);line-height:1.6}
+.wrap{max-width:880px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+h1{font-size:1.9rem;margin:0;font-weight:800;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);margin:0}
+.panel{background:var(--panel);border-radius:14px;padding:22px;display:grid;gap:16px;min-width:0}
+.panel>*{min-width:0}
+.panel>h2{margin:0;font-size:1.35rem;font-weight:800;padding-bottom:14px;border-bottom:1px solid var(--line)}
+details>summary{cursor:pointer;color:var(--accent);list-style:none;user-select:none}
+details>summary::before{content:"▶";font-size:.75em;margin-right:8px;display:inline-block;transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+summary:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.rules{color:var(--muted);font-size:.93rem;margin:10px 0 0;padding-left:1.2em;display:grid;gap:4px}
+.rules b{color:var(--fg)}
+.card{background:var(--card);border-radius:10px;padding:18px;display:grid;gap:6px;min-width:0}
+.card h3{margin:0 0 6px;font-size:1.12rem}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.sep{color:var(--line)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;padding:1px 10px;border-radius:999px;border:1px solid currentColor}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.ok{color:var(--up)} .bad{color:var(--down)} .wait{color:var(--warn)} .mut{color:var(--muted)}
+.pos{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:8px;padding-top:10px;border-top:1px dashed var(--line)}
+.kv span{display:block;font-size:.75rem;color:var(--muted);letter-spacing:.06em}
+.kv b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
+.chartbox{position:relative;min-width:0}
+canvas{width:100%;height:280px;display:block;border-radius:8px;background:var(--card)}
+.legend{font-size:.78rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+.legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:4px}
+.tbl{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:620px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:.78rem}
+td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:10px}
+.note{font-size:.82rem;color:var(--muted);margin:0}
+.err{color:var(--down);font-size:.9rem}
+button.btn{font:inherit;color:var(--accent);background:transparent;border:1px solid var(--accent);border-radius:8px;padding:2px 12px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){details>summary::before{transition:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>策略即時狀態</h1>
+    <p class="sub">模擬盤｜各帳本單筆持倉｜BTC每次0.1 BTC｜歷史紀錄可展開查看</p>
+  </header>
+
+  <section class="panel">
+    <h2>比特幣・艾略特數浪模擬（5分K）</h2>
+
+    <details>
+      <summary>策略規則</summary>
+      <ol class="rules">
+        <li><b>資料</b>：Binance BTCUSDT 5分K（與 TradingView BINANCE:BTCUSDT 同一份資料），只用已收盤K棒判斷，每分鐘自動更新。</li>
+        <li><b>數浪</b>：ZigZag 轉折，價格反向走出 2×ATR(14) 才確認一個浪點（不偷看未來）。</li>
+        <li><b>做多（抓第3浪）</b>：低點0 → 高點1（第1浪）→ 低點2（第2浪）。第2浪不可破0、回撤第1浪 38.2%～78.6%、第1浪 ≥ 2×ATR。價格突破浪點1 進場。</li>
+        <li><b>做空</b>：完全鏡像。</li>
+        <li><b>停損</b>：浪點2 外 0.2×ATR（第2浪被破＝數浪失效）。</li>
+        <li><b>停利</b>：浪點2 ± 1.618×第1浪（第3浪常見目標）；盈虧比不足 1.2 不進場。</li>
+        <li><b>保本</b>：走到浪點2 ± 1.0×第1浪後，停損移到進場價。</li>
+        <li><b>時間停損</b>：72根K（6小時）未出場就收盤價平倉。</li>
+        <li><b>成本</b>：手續費單邊 0.04%、滑價 1 USDT。等待突破超過 60 根K 該數浪作廢。</li>
+      </ol>
+    </details>
+
+    <div class="card" id="acct">
+      <h3>數浪第3浪・多空 0.1 BTC</h3>
+      <div class="row"><span id="runPill" class="pill wait"><i></i>連線中</span><span class="sep">｜</span><span>更新 <span class="mono" id="upd">—</span></span></div>
+      <div id="msg">正在向 Binance 取得5分K…</div>
+      <div id="posLine">目前空手</div>
+      <div class="row mono" id="realLine">已平倉 0筆｜已實現 0 USDT價差｜已實現 0 USDT（扣費）</div>
+      <div class="row">持倉浮動 <span class="mono" id="floatV">0 USDT</span><span class="sep">｜</span>現價 <span class="mono" id="lastPx">—</span></div>
+      <div class="pos" id="posBox" hidden></div>
+      <div id="errBox" class="err" hidden></div>
+    </div>
+
+    <div class="chartbox">
+      <canvas id="cvEW" aria-label="最近 5 分K 與數浪轉折"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--accent)"></i>數浪轉折</span>
+        <span><i style="background:var(--fg)"></i>進場</span>
+        <span><i style="background:var(--down)"></i>停損</span>
+        <span><i style="background:var(--up)"></i>停利</span>
+        <span>最近 16 小時，5分K</span>
+      </div>
+    </div>
+
+    <details open>
+      <summary>歷史紀錄（啟動後）</summary>
+      <p class="note" id="fwdNote">啟動時間 —</p>
+      <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>價差</th><th>扣費後</th><th>R</th></tr></thead><tbody id="fwdBody"><tr><td colspan="8" class="mut">啟動後還沒有平倉紀錄</td></tr></tbody></table></div>
+    </details>
+
+    <details>
+      <summary>回測參考（啟動前，同一套規則）</summary>
+      <div class="stats" id="btStats"></div>
+      <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>價差</th><th>扣費後</th><th>R</th></tr></thead><tbody id="btBody"></tbody></table></div>
+      <p class="note">回測涵蓋啟動前約 10 天；樣本少，參考用。</p>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2>比特幣・KD雙K鎖利模擬（5分K）</h2>
+    <details>
+      <summary>策略規則</summary>
+      <ol class="rules">
+        <li><b>訊號</b>：照你的指標「KD 區間翻倍+紅黑K吞標記」重現。KD(9,3,3)；收盤價高於前3根K最高點且 K&lt;70 為 <b>Buy</b>，收盤價低於前3根K最低點且 K&gt;30 為 <b>Sell</b>；同方向訊號不重複。</li>
+        <li><b>進場</b>：訊號K收盤後，下一根開盤進場。出現反向訊號就平倉並反手。</li>
+        <li><b>初始停損</b>：多單放訊號K低點下一跳，空單放訊號K高點上一跳。</li>
+        <li><b>鎖利</b>：最高浮盈 50／100／150／200／250／300／350 點，停損移到進場價加減 40／80／130／150／200／250／300 點；之後浮盈每多 50 點，鎖利再提高 50 點。</li>
+        <li><b>停損只收緊不放寬</b>，價格碰到即出場。同一根K先看停損、再更新浮盈，下一根才用新停損（保守算法）。</li>
+        <li><b>成本</b>：1 點＝1 USDT，0.1 BTC 每點 0.1 USDT。滑價每邊 1 點，未扣手續費。</li>
+      </ol>
+    </details>
+
+    <div class="card">
+      <h3>KD雙K・多空 0.1 BTC</h3>
+      <div class="row"><span id="dkPill" class="pill wait"><i></i>連線中</span><span class="sep">｜</span><span>更新 <span class="mono" id="dkUpd">—</span></span></div>
+      <div id="dkMsg">等待行情…</div>
+      <div id="dkPos">目前空手</div>
+      <div class="row mono" id="dkReal">已平倉 0筆｜已實現 0 USDT價差｜已實現 0 USDT（含滑價，未扣費用）</div>
+      <div class="row">持倉浮動 <span class="mono" id="dkFloat">0 USDT</span><span class="sep">｜</span>K值 <span class="mono" id="dkK">—</span></div>
+      <div class="pos" id="dkBox" hidden></div>
+    </div>
+
+    <div class="chartbox">
+      <canvas id="cvDK" aria-label="最近 5 分K 與雙K訊號"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--up)"></i>Buy</span>
+        <span><i style="background:var(--down)"></i>Sell</span>
+        <span><i style="background:var(--fg)"></i>進場</span>
+        <span><i style="background:var(--warn)"></i>目前停損</span>
+        <span>最近 16 小時，5分K</span>
+      </div>
+    </div>
+
+    <details open>
+      <summary>歷史紀錄（啟動後）</summary>
+      <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>最高浮盈</th><th>價差</th><th>含滑價</th></tr></thead><tbody id="dkBody"></tbody></table></div>
+    </details>
+
+    <details>
+      <summary>回測參考（啟動前，同一套規則）</summary>
+      <div class="stats" id="dkStats"></div>
+      <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>最高浮盈</th><th>價差</th><th>含滑價</th></tr></thead><tbody id="dkBtBody"></tbody></table></div>
+    </details>
+  </section>
+  <p class="note">純模擬，不連任何交易所帳戶，不構成投資建議。</p>
+</div>
+
+<script>
+// 數浪第3浪策略引擎（與 ew_backtest.py 同規則）
+function runEW(B, opt) {
+  const FEE = 0.0004, SLIP = 1.0, QTY = 0.1, ZZ_K = 2.0, MAX_BARS = 72;
+  const canEnter = opt && opt.canEnter ? opt.canEnter : () => true;
+  const T = B.t, O = B.o, H = B.h, L = B.l, C = B.c, n = C.length;
+  const atr = new Array(n).fill(0);
+  const tr = [H[0] - L[0]];
+  for (let i = 1; i < n; i++) tr.push(Math.max(H[i] - L[i], Math.abs(H[i] - C[i - 1]), Math.abs(L[i] - C[i - 1])));
+  let s = 0; for (let i = 0; i < 14; i++) s += tr[i]; atr[13] = s / 14;
+  for (let i = 14; i < n; i++) atr[i] = (atr[i - 1] * 13 + tr[i]) / 14;
+
+  // ZigZag（價格反向走出 2×ATR 才確認轉折）
+  const piv = []; let trend = 0, extI = 14, extP = C[14];
+  for (let i = 15; i < n; i++) {
+    const th = ZZ_K * atr[i];
+    if (trend >= 0) {
+      if (H[i] > extP) { extP = H[i]; extI = i; }
+      if (trend === 0 && L[i] < C[14] - th) { piv.push([14, C[14], 'H', i]); trend = -1; extP = L[i]; extI = i; continue; }
+      if (trend === 1 && extP - L[i] >= th) { piv.push([extI, extP, 'H', i]); trend = -1; extP = L[i]; extI = i; continue; }
+      if (trend === 0 && H[i] > C[14] + th) { piv.push([14, C[14], 'L', i]); trend = 1; extP = H[i]; extI = i; }
+    } else {
+      if (L[i] < extP) { extP = L[i]; extI = i; }
+      if (H[i] - extP >= th) { piv.push([extI, extP, 'L', i]); trend = 1; extP = H[i]; extI = i; }
+    }
+  }
+  const byConf = {}; piv.forEach(p => (byConf[p[3]] = byConf[p[3]] || []).push(p));
+
+  const trades = []; let pos = null, pending = null; const known = [];
+  for (let i = 15; i < n; i++) {
+    if (pos) {
+      const d = pos.dir;
+      const hitSL = d === 1 ? L[i] <= pos.sl : H[i] >= pos.sl;
+      const hitTP = d === 1 ? H[i] >= pos.tp : L[i] <= pos.tp;
+      let xp = null, why = null;
+      if (hitSL) { xp = pos.sl; why = pos.be ? '保本' : '停損'; }
+      else if (hitTP) { xp = pos.tp; why = '停利'; }
+      else if (i - pos.i >= MAX_BARS) { xp = C[i]; why = '時間'; }
+      if (xp !== null) {
+        xp -= d * SLIP;
+        const gross = d * (xp - pos.entry) * QTY;
+        const fee = FEE * (xp + pos.entry) * QTY;
+        trades.push({ dir: d, entry: pos.entry, sl0: pos.sl0, tp: pos.tp, et: T[pos.i], xt: T[i], exit: xp, why, gross, fee, pnl: gross - fee, R: (gross - fee) / pos.riskUsd, waves: pos.waves });
+        pos = null;
+      } else if (!pos.be && (d === 1 ? H[i] >= pos.beLv : L[i] <= pos.beLv)) { pos.be = true; pos.sl = pos.entry; }
+    }
+    for (const p of (byConf[i] || [])) {
+      known.push(p);
+      if (known.length < 3) continue;
+      const [p0, p1, p2] = known.slice(-3);
+      const w1 = Math.abs(p1[1] - p0[1]), a = atr[p2[3]];
+      if (w1 < 2 * a) continue;
+      const retr = Math.abs(p1[1] - p2[1]) / w1;
+      if (p0[2] === 'L' && p2[1] > p0[1] && retr >= 0.382 && retr <= 0.786) pending = { dir: 1, trig: p1[1], p0, p1, p2, w1, retr, born: i };
+      else if (p0[2] === 'H' && p2[1] < p0[1] && retr >= 0.382 && retr <= 0.786) pending = { dir: -1, trig: p1[1], p0, p1, p2, w1, retr, born: i };
+      else pending = null;
+    }
+    if (pending && !pos && i > pending.born) {
+      const d = pending.dir, p2 = pending.p2[1], a = atr[i];
+      const broke = d === 1 ? H[i] > pending.trig : L[i] < pending.trig;
+      const invalid = d === 1 ? L[i] < p2 : H[i] > p2;
+      if (invalid || i - pending.born > 60) pending = null;
+      else if (broke) {
+        let entry = d === 1 ? Math.max(O[i], pending.trig) : Math.min(O[i], pending.trig);
+        entry += d * SLIP;
+        const sl = p2 - d * 0.2 * a, tp = p2 + d * 1.618 * pending.w1, riskPx = Math.abs(entry - sl);
+        if (d * (tp - entry) / riskPx >= 1.2 && canEnter(T[i])) {
+          pos = { dir: d, entry, sl, sl0: sl, tp, be: false, beLv: p2 + d * pending.w1, i, riskUsd: riskPx * QTY,
+                  waves: [pending.p0, pending.p1, pending.p2].map(p => [T[p[0]], p[1]]) };
+        }
+        pending = null;
+      }
+    }
+  }
+  const openPos = pos ? { dir: pos.dir, entry: pos.entry, sl: pos.sl, sl0: pos.sl0, tp: pos.tp, be: pos.be, et: T[pos.i], waves: pos.waves } : null;
+  const pend = pending ? { dir: pending.dir, trig: pending.trig, p2: pending.p2[1], p0: pending.p0[1], retr: pending.retr, tp: pending.p2[1] + pending.dir * 1.618 * pending.w1 } : null;
+  return { trades, open: openPos, pending: pend, pivots: piv.map(p => [T[p[0]], p[1], p[2], T[p[3]]]), QTY, FEE };
+}
+
+
+// 雙K 訊號 + 階梯鎖利停損引擎
+// signals: 與 K 棒同長度的陣列，1=Buy、-1=Sell、0=無（只在收盤後成立，下一根開盤進場）
+// 訊號邏輯待使用者提供 Pine 原始碼後填入 doubleKSignals()
+const TICK = 0.01, SLIP_PTS = 1.0, QTY_DK = 0.1;
+
+// 最高浮盈（點）→ 鎖住的獲利點數；未達 50 點回傳 null（維持初始停損）
+function lockPts(maxFav) {
+  if (maxFav < 50) return null;
+  const table = [[350, 300], [300, 250], [250, 200], [200, 150], [150, 130], [100, 80], [50, 40]];
+  if (maxFav >= 400) return 300 + Math.floor((maxFav - 350) / 50) * 50;
+  for (const [need, lock] of table) if (maxFav >= need) return lock;
+  return null;
+}
+
+function runDoubleK(B, signals, opt) {
+  const canEnter = opt && opt.canEnter ? opt.canEnter : () => true;
+  const { t: T, o: O, h: H, l: L, c: C } = B, n = C.length;
+  const trades = []; let pos = null;
+  const close = (i, px, why) => {
+    const exit = px - pos.dir * SLIP_PTS;
+    const pts = pos.dir * (exit - pos.entry);
+    const rawPts = pos.dir * (px - pos.raw);
+    trades.push({ dir: pos.dir, et: pos.et, entry: pos.entry, xt: T[i], exit, why, maxFav: pos.maxFav, sl0: pos.sl0,
+                  pts, rawPts, gross: rawPts * QTY_DK, fee: 0, pnl: pts * QTY_DK, R: pts / Math.abs(pos.entry - pos.sl0) });
+    pos = null;
+  };
+  const open = (i, d, sigBar) => {
+    const entry = O[i] + d * SLIP_PTS;
+    const sl = d === 1 ? L[sigBar] - TICK : H[sigBar] + TICK;
+    pos = { dir: d, entry, raw: O[i], sl, sl0: sl, maxFav: 0, lock: null, et: T[i], sig: T[sigBar] };
+  };
+  for (let i = 1; i < n; i++) {
+    const s = signals[i - 1]; // 前一根收盤成立的訊號 → 本根開盤動作
+    if (s && pos && s !== pos.dir) close(i, O[i], '反向訊號');
+    if (s && !pos && canEnter(T[i])) open(i, s, i - 1);
+    if (!pos) continue;
+    const d = pos.dir;
+    // 先用既有停損檢查本根（保守：同根先觸停損）
+    if (d === 1 ? L[i] <= pos.sl : H[i] >= pos.sl) {
+      const px = d === 1 ? Math.min(O[i], pos.sl) : Math.max(O[i], pos.sl); // 跳空穿越以開盤價成交
+      close(i, px, pos.lock === null ? '初始停損' : `鎖利${pos.lock}點`);
+      continue;
+    }
+    // 更新最高浮盈並收緊停損（只緊不鬆），下一根生效
+    pos.maxFav = Math.max(pos.maxFav, d === 1 ? H[i] - pos.entry : pos.entry - L[i]);
+    const lk = lockPts(pos.maxFav);
+    if (lk !== null) {
+      const nsl = pos.entry + d * lk;
+      if (d === 1 ? nsl > pos.sl : nsl < pos.sl) { pos.sl = nsl; pos.lock = lk; }
+    }
+  }
+  return { trades, open: pos ? { ...pos } : null, QTY: QTY_DK };
+}
+
+
+// 依使用者 Pine「KD 區間翻倍+紅黑K吞標記」雙K訊號原樣重現
+function doubleKSignals(B, kLength = 9, smoothK = 3) {
+  const { h: H, l: L, c: C } = B, n = C.length;
+  const k = new Array(n), sig = new Array(n).fill(0);
+  let prevK = NaN, last = 0;
+  for (let i = 0; i < n; i++) {
+    let rsv;
+    if (i < kLength - 1) rsv = 0; // ta.highest 資料不足 → na → rsv=0
+    else {
+      let hh = -Infinity, ll = Infinity;
+      for (let j = i - kLength + 1; j <= i; j++) { if (H[j] > hh) hh = H[j]; if (L[j] < ll) ll = L[j]; }
+      rsv = hh - ll === 0 ? NaN : 100 * (C[i] - ll) / (hh - ll);
+    }
+    const base = isNaN(prevK) ? 0 : prevK;           // nz(result[1])
+    k[i] = (1 * rsv + (smoothK - 1) * base) / smoothK; // bcwsma(rsv, smoothK, 1)
+    prevK = k[i];
+    if (i < 3) continue;
+    const high2 = Math.max(H[i - 1], H[i - 2], H[i - 3]); // ta.highest(high[1], 3)
+    const low2 = Math.min(L[i - 1], L[i - 2], L[i - 3]);
+    const buy = C[i] > high2 && last !== 1 && k[i] < 70;
+    const sell = C[i] < low2 && last !== -1 && k[i] > 30;
+    if (buy) { last = 1; sig[i] = 1; } else if (sell) { last = -1; sig[i] = -1; }
+  }
+  return { sig, k, last };
+}
+
+const LAUNCH = 1794066300; // 2026/11/7 23:45 台北時間開始模擬
+const $ = id => document.getElementById(id);
+const fmtT = s => new Date(s * 1000).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+const fmtFull = ms => new Date(ms).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
+const px = v => v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const usd = v => (v > 0 ? "+" : "") + v.toFixed(2);
+const cls = v => v > 0 ? "ok" : v < 0 ? "bad" : "mut";
+
+function toCols(p) {
+  const b = p && p.bars;
+  if (!b) throw { code: "shape" };
+  if (Array.isArray(b)) return { t: b.map(r => r.t), o: b.map(r => r.o), h: b.map(r => r.h), l: b.map(r => r.l), c: b.map(r => r.c) };
+  return { t: b.t, o: b.o, h: b.h, l: b.l, c: b.c };
+}
+function merge(a, b) { // a 較舊
+  if (!a) return b;
+  const last = a.t[a.t.length - 1]; const k = b.t.findIndex(t => t > last);
+  const s = k < 0 ? b.t.length : k;
+  return { t: a.t.concat(b.t.slice(s)), o: a.o.concat(b.o.slice(s)), h: a.h.concat(b.h.slice(s)), l: a.l.concat(b.l.slice(s)), c: a.c.concat(b.c.slice(s)) };
+}
+
+function setPill(kind, text) { const p = $("runPill"); p.className = "pill " + kind; p.lastChild.textContent = text; }
+function showErr(t) { const e = $("errBox"); e.textContent = t; e.hidden = !t; }
+
+function rowsHTML(list) {
+  return list.slice().reverse().map(t => `<tr><td>${fmtT(t.et)}</td><td class="${t.dir > 0 ? "ok" : "bad"}">${t.dir > 0 ? "多" : "空"}</td><td>${px(t.entry)}</td><td>${px(t.exit)}</td><td style="font-family:var(--display)">${t.why}</td><td class="${cls(t.gross)}">${usd(t.gross)}</td><td class="${cls(t.pnl)}">${usd(t.pnl)}</td><td>${t.R.toFixed(2)}</td></tr>`).join("");
+}
+function statsHTML(list) {
+  const n = list.length, w = list.filter(t => t.pnl > 0).length, net = list.reduce((a, t) => a + t.pnl, 0);
+  const gp = list.filter(t => t.pnl > 0).reduce((a, t) => a + t.pnl, 0), gl = -list.filter(t => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
+  const kv = (k, v, c = "") => `<div class="kv"><span>${k}</span><b class="${c}">${v}</b></div>`;
+  return kv("筆數", n) + kv("勝率", n ? (w / n * 100).toFixed(1) + "%" : "—") + kv("扣費淨損益", usd(net) + " USDT", cls(net)) + kv("獲利因子", gl ? (gp / gl).toFixed(2) : "—") + kv("平均R", n ? (list.reduce((a, t) => a + t.R, 0) / n).toFixed(2) : "—");
+}
+
+function render(all, fetchedAt) {
+  const nowS = Date.now() / 1000;
+  // 只用已收盤K棒做訊號；最後一根若未收盤只拿來算浮動
+  let n = all.t.length;
+  const lastPx = all.c[n - 1];
+  if (all.t[n - 1] + 300 > nowS) n -= 1;
+  const B = { t: all.t.slice(0, n), o: all.o.slice(0, n), h: all.h.slice(0, n), l: all.l.slice(0, n), c: all.c.slice(0, n) };
+  const fwd = runEW(B, { canEnter: t => t >= LAUNCH });
+  const bt = runEW(B, { canEnter: t => t < LAUNCH });
+  const done = fwd.trades.filter(t => t.et >= LAUNCH);
+
+  $("upd").textContent = fmtFull(fetchedAt);
+  $("lastPx").textContent = px(lastPx);
+  const g = done.reduce((a, t) => a + t.gross, 0), net = done.reduce((a, t) => a + t.pnl, 0);
+  $("realLine").innerHTML = `已平倉 ${done.length}筆｜已實現 <span class="${cls(g)}">${usd(g)}</span> USDT價差｜已實現 <span class="${cls(net)}">${usd(net)}</span> USDT（扣費）`;
+
+  const o = fwd.open, box = $("posBox");
+  if (o) {
+    const fl = o.dir * (lastPx - o.entry) * fwd.QTY;
+    $("floatV").innerHTML = `<span class="${cls(fl)}">${usd(fl)} USDT</span>`;
+    $("posLine").innerHTML = `持倉中：<b class="${o.dir > 0 ? "ok" : "bad"}">${o.dir > 0 ? "多單" : "空單"} 0.1 BTC</b>${o.be ? "（已移保本）" : ""}`;
+    $("msg").textContent = "第3浪進行中，等停利／停損";
+    const w = o.waves;
+    box.innerHTML = [["進場時間", fmtT(o.et)], ["進場價", px(o.entry)], ["停損", px(o.sl)], ["停利", px(o.tp)], ["浪點0", px(w[0][1])], ["浪點1", px(w[1][1])], ["浪點2", px(w[2][1])]]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
+    box.hidden = false;
+  } else {
+    $("floatV").textContent = "0 USDT";
+    $("posLine").textContent = "目前空手";
+    box.hidden = true;
+    const p = fwd.pending;
+    if (p) $("msg").innerHTML = `已數出 1-2 浪（${p.dir > 0 ? "多" : "空"}），回撤 ${(p.retr * 100).toFixed(1)}%；等價格${p.dir > 0 ? "突破" : "跌破"} <b class="mono">${px(p.trig)}</b> 進場，作廢價 <span class="mono">${px(p.p2)}</span>`;
+    else $("msg").textContent = nowS < LAUNCH + 300 ? "等待啟動後新數浪訊號" : "等待新的 0-1-2 浪結構";
+  }
+  setPill("ok", "運行中");
+  showErr("");
+
+  $("fwdNote").textContent = `啟動時間 ${fmtFull(LAUNCH * 1000)}（台北），之後的進場才計入。`;
+  $("fwdBody").innerHTML = done.length ? rowsHTML(done) : `<tr><td colspan="8" class="mut" style="font-family:var(--display)">啟動後還沒有平倉紀錄</td></tr>`;
+  const btT = bt.trades.filter(t => t.et < LAUNCH);
+  $("btStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(LAUNCH)}</b></div>`;
+  $("btBody").innerHTML = rowsHTML(btT);
+  draw(B, fwd, lastPx);
+  renderDK(B, lastPx, fetchedAt);
+}
+
+function draw(B, r, lastPx) {
+  const cv = $("cvEW"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, Hh = cv.clientHeight;
+  cv.width = W * dpr; cv.height = Hh * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, W, Hh);
+  const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  const N = Math.min(192, B.t.length), s = B.t.length - N;
+  const lv = [];
+  for (let i = s; i < B.t.length; i++) lv.push(B.h[i], B.l[i]);
+  const o = r.open, p = r.pending;
+  if (o) lv.push(o.sl, o.tp, o.entry); else if (p) lv.push(p.trig, p.p2);
+  let lo = Math.min(...lv), hi = Math.max(...lv); const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const padR = 64, x0 = 6, cw = (W - padR - x0) / N;
+  const X = i => x0 + (i - s + 0.5) * cw, Y = v => 8 + (hi - v) / (hi - lo) * (Hh - 16);
+  g.font = "11px " + col("--mono"); g.textAlign = "left"; g.textBaseline = "middle";
+  // 格線
+  g.strokeStyle = col("--line"); g.fillStyle = col("--muted"); g.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Y(v); g.beginPath(); g.moveTo(x0, y); g.lineTo(W - padR, y); g.stroke(); g.fillText(Math.round(v).toLocaleString("en-US"), W - padR + 6, y); }
+  // K棒
+  for (let i = s; i < B.t.length; i++) {
+    const up = B.c[i] >= B.o[i]; g.strokeStyle = g.fillStyle = up ? col("--up") : col("--down");
+    g.beginPath(); g.moveTo(X(i), Y(B.h[i])); g.lineTo(X(i), Y(B.l[i])); g.stroke();
+    const y1 = Y(Math.max(B.o[i], B.c[i])), y2 = Y(Math.min(B.o[i], B.c[i]));
+    g.fillRect(X(i) - Math.max(1, cw * 0.35), y1, Math.max(2, cw * 0.7), Math.max(1, y2 - y1));
+  }
+  // 數浪轉折
+  const idx = {}; B.t.forEach((t, i) => idx[t] = i);
+  const pv = r.pivots.filter(q => idx[q[0]] >= s);
+  g.strokeStyle = col("--accent"); g.lineWidth = 1.6; g.beginPath();
+  pv.forEach((q, k) => { const x = X(idx[q[0]]), y = Y(q[1]); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+  // 標記 0/1/2 浪
+  const lab = o ? o.waves : null;
+  if (lab) { g.fillStyle = col("--fg"); g.textAlign = "center"; g.font = "bold 12px " + col("--mono");
+    lab.forEach((w, k) => { if (idx[w[0]] >= s) { const isHigh = (k === 1) === (o.dir > 0); g.fillText(String(k), X(idx[w[0]]), Y(w[1]) + (isHigh ? -10 : 12)); } }); }
+  // 水平線
+  const hl = (v, c, t) => { g.strokeStyle = c; g.setLineDash([5, 4]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(W - padR, Y(v)); g.stroke(); g.setLineDash([]); g.fillStyle = c; g.textAlign = "right"; g.font = "11px " + col("--mono"); g.fillText(t, W - padR - 4, Y(v) - 8); };
+  if (o) { hl(o.entry, col("--fg"), "進場"); hl(o.sl, col("--down"), "停損"); hl(o.tp, col("--up"), "停利"); }
+  else if (p) { hl(p.trig, col("--warn"), "突破進場"); hl(p.p2, col("--muted"), "作廢"); }
+}
+
+
+const LADDER = [[50, 40], [100, 80], [150, 130], [200, 150], [250, 200], [300, 250], [350, 300]];
+function nextStep(maxFav) {
+  for (const [need, lock] of LADDER) if (maxFav < need) return [need, lock];
+  const need = Math.floor(maxFav / 50) * 50 + 50; return [need, 300 + (need - 350)];
+}
+function dkRows(list) {
+  return list.slice().reverse().map(t => `<tr><td>${fmtT(t.et)}</td><td class="${t.dir > 0 ? "ok" : "bad"}">${t.dir > 0 ? "多" : "空"}</td><td>${px(t.entry)}</td><td>${px(t.exit)}</td><td style="font-family:var(--display)">${t.why}</td><td>${t.maxFav.toFixed(0)}</td><td class="${cls(t.gross)}">${usd(t.gross)}</td><td class="${cls(t.pnl)}">${usd(t.pnl)}</td></tr>`).join("");
+}
+function renderDK(B, lastPx, fetchedAt) {
+  const S = doubleKSignals(B);
+  const fwd = runDoubleK(B, S.sig, { canEnter: t => t >= LAUNCH });
+  const bt = runDoubleK(B, S.sig, { canEnter: t => t < LAUNCH });
+  const done = fwd.trades.filter(t => t.et >= LAUNCH);
+  const n = B.t.length, kNow = S.k[n - 1];
+  $("dkUpd").textContent = fmtFull(fetchedAt);
+  $("dkK").textContent = kNow.toFixed(1);
+  const g = done.reduce((a, t) => a + t.gross, 0), net = done.reduce((a, t) => a + t.pnl, 0);
+  $("dkReal").innerHTML = `已平倉 ${done.length}筆｜已實現 <span class="${cls(g)}">${usd(g)}</span> USDT價差｜已實現 <span class="${cls(net)}">${usd(net)}</span> USDT（含滑價，未扣費用）`;
+  // 下一個可能訊號（指標同方向不重複）
+  const h3 = Math.max(B.h[n - 1], B.h[n - 2], B.h[n - 3]), l3 = Math.min(B.l[n - 1], B.l[n - 2], B.l[n - 3]);
+  const wait = [];
+  if (S.last !== 1) wait.push(`收盤 &gt; <b class="mono">${px(h3)}</b> 且 K&lt;70 出 Buy`);
+  if (S.last !== -1) wait.push(`收盤 &lt; <b class="mono">${px(l3)}</b> 且 K&gt;30 出 Sell`);
+  const o = fwd.open, box = $("dkBox");
+  if (o) {
+    const fl = o.dir * (lastPx - o.entry) * fwd.QTY;
+    const cur = o.dir * ((o.dir > 0 ? Math.max(o.maxFav + o.entry, lastPx) : Math.min(o.entry - o.maxFav, lastPx)) - o.entry);
+    const [need, lock] = nextStep(Math.max(o.maxFav, cur));
+    $("dkFloat").innerHTML = `<span class="${cls(fl)}">${usd(fl)} USDT</span>`;
+    $("dkPos").innerHTML = `持倉中：<b class="${o.dir > 0 ? "ok" : "bad"}">${o.dir > 0 ? "多單" : "空單"} 0.1 BTC</b>${o.lock !== null ? `（已鎖利 ${o.lock} 點）` : "（初始停損）"}`;
+    $("dkMsg").innerHTML = `下一階：最高浮盈到 ${need} 點，停損移到 <span class="mono">${px(o.entry + o.dir * lock)}</span>（鎖 ${lock} 點）。反向訊號：${wait.join("；") || "—"}`;
+    box.innerHTML = [["進場時間", fmtT(o.et)], ["進場價", px(o.entry)], ["目前停損", px(o.sl)], ["初始停損", px(o.sl0)], ["最高浮盈", Math.max(o.maxFav, cur).toFixed(0) + " 點"], ["鎖利", o.lock === null ? "未啟動" : o.lock + " 點"]]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
+    box.hidden = false;
+  } else {
+    $("dkFloat").textContent = "0 USDT";
+    $("dkPos").textContent = "目前空手";
+    $("dkMsg").innerHTML = "等待訊號：" + wait.join("；");
+    box.hidden = true;
+  }
+  $("dkPill").className = "pill ok"; $("dkPill").lastChild.textContent = "運行中";
+  $("dkBody").innerHTML = done.length ? dkRows(done) : `<tr><td colspan="8" class="mut" style="font-family:var(--display)">啟動後還沒有平倉紀錄</td></tr>`;
+  const btT = bt.trades.filter(t => t.et < LAUNCH);
+  $("dkStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(LAUNCH)}</b></div>`;
+  $("dkBtBody").innerHTML = dkRows(btT);
+  drawDK(B, S.sig, o);
+}
+function drawDK(B, sig, o) {
+  const base = chartBase("cvDK", B, o ? [o.sl, o.entry] : []);
+  if (!base) return;
+  const { g, X, Y, s, col, hl } = base;
+  g.textAlign = "center"; g.font = "bold 10px " + col("--display");
+  for (let i = s; i < B.t.length; i++) {
+    if (!sig[i]) continue;
+    const buy = sig[i] > 0, c = buy ? col("--up") : col("--down");
+    const y = buy ? Y(B.l[i]) + 14 : Y(B.h[i]) - 14;
+    g.fillStyle = c; g.beginPath();
+    if (buy) { g.moveTo(X(i), Y(B.l[i]) + 3); g.lineTo(X(i) - 4, Y(B.l[i]) + 9); g.lineTo(X(i) + 4, Y(B.l[i]) + 9); }
+    else { g.moveTo(X(i), Y(B.h[i]) - 3); g.lineTo(X(i) - 4, Y(B.h[i]) - 9); g.lineTo(X(i) + 4, Y(B.h[i]) - 9); }
+    g.fill(); g.fillText(buy ? "Buy" : "Sell", X(i), y + (buy ? 4 : -2));
+  }
+  if (o) { hl(o.entry, col("--fg"), "進場"); hl(o.sl, col("--warn"), o.lock === null ? "初始停損" : `鎖利 ${o.lock}`); }
+}
+function chartBase(id, B, extra) {
+  const cv = $(id), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, Hh = cv.clientHeight;
+  if (!W) return null;
+  cv.width = W * dpr; cv.height = Hh * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, W, Hh);
+  const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  const N = Math.min(192, B.t.length), s = B.t.length - N, lv = extra.slice();
+  for (let i = s; i < B.t.length; i++) lv.push(B.h[i], B.l[i]);
+  let lo = Math.min(...lv), hi = Math.max(...lv); const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const padR = 64, x0 = 6, cw = (W - padR - x0) / N;
+  const X = i => x0 + (i - s + 0.5) * cw, Y = v => 8 + (hi - v) / (hi - lo) * (Hh - 16);
+  g.font = "11px " + col("--mono"); g.textAlign = "left"; g.textBaseline = "middle";
+  g.strokeStyle = col("--line"); g.fillStyle = col("--muted"); g.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Y(v); g.beginPath(); g.moveTo(x0, y); g.lineTo(W - padR, y); g.stroke(); g.fillText(Math.round(v).toLocaleString("en-US"), W - padR + 6, y); }
+  for (let i = s; i < B.t.length; i++) {
+    const up = B.c[i] >= B.o[i]; g.strokeStyle = g.fillStyle = up ? col("--up") : col("--down");
+    g.beginPath(); g.moveTo(X(i), Y(B.h[i])); g.lineTo(X(i), Y(B.l[i])); g.stroke();
+    const y1 = Y(Math.max(B.o[i], B.c[i])), y2 = Y(Math.min(B.o[i], B.c[i]));
+    g.fillRect(X(i) - Math.max(1, cw * 0.35), y1, Math.max(2, cw * 0.7), Math.max(1, y2 - y1));
+  }
+  const hl = (v, c, t) => { g.strokeStyle = c; g.setLineDash([5, 4]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(W - padR, Y(v)); g.stroke(); g.setLineDash([]); g.fillStyle = c; g.textAlign = "right"; g.font = "11px " + col("--mono"); g.fillText(t, W - padR - 4, Y(v) - 8); };
+  return { g, X, Y, s, col, hl };
+}
+
+
+const API = ["https://data-api.binance.vision", "https://api.binance.com"];
+const WARM = 3000 * 300; // 啟動前多抓約 10 天，當回測和指標暖身
+let bars = { t: [], o: [], h: [], l: [], c: [] }, lastAt = 0, busy = false;
+async function klines(startMs) {
+  let err;
+  for (const host of API) {
+    try {
+      const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000&startTime=${startMs}`, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return await r.json();
+    } catch (e) { err = e; }
+  }
+  throw err;
+}
+function push(rows) {
+  for (const k of rows) {
+    const t = Math.floor(k[0] / 1000), n = bars.t.length;
+    if (n && t === bars.t[n - 1]) { bars.o[n-1] = +k[1]; bars.h[n-1] = +k[2]; bars.l[n-1] = +k[3]; bars.c[n-1] = +k[4]; continue; }
+    if (n && t < bars.t[n - 1]) continue;
+    bars.t.push(t); bars.o.push(+k[1]); bars.h.push(+k[2]); bars.l.push(+k[3]); bars.c.push(+k[4]);
+  }
+}
+async function refresh() {
+  if (busy) return; busy = true;
+  try {
+    let cursor = bars.t.length ? bars.t[bars.t.length - 1] * 1000 : (LAUNCH - WARM) * 1000;
+    for (let guard = 0; guard < 300; guard++) {
+      const rows = await klines(cursor);
+      push(rows);
+      if (rows.length < 1000) break;
+      cursor = rows[rows.length - 1][0] + 1;
+    }
+    lastAt = Date.now();
+    render(bars, lastAt);
+  } catch (e) {
+    const p = bars.t.length ? ["wait", "重試中"] : ["bad", "未連線"];
+    for (const id of ["runPill", "dkPill"]) { const el = $(id); el.className = "pill " + p[0]; el.lastChild.textContent = p[1]; }
+    showErr("取得 Binance 行情失敗（" + (e.message || e) + "），一分鐘後自動重試。");
+  } finally { busy = false; }
+}
+refresh();
+setInterval(refresh, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+window.addEventListener("resize", () => { if (bars.t.length) render(bars, lastAt); });
+</script>
+
+</body>
+</html>
