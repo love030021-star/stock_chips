@@ -159,12 +159,13 @@ button.btn{font:inherit;color:var(--accent);background:transparent;border:1px so
     </div>
 
     <details open>
-      <summary>歷史紀錄（啟動後）</summary>
+      <summary>歷史紀錄（鎖利規則開始後）</summary>
+      <p class="note">從 2026/11/8 08:15（台北）你設定雙K鎖利規則開始記錄，之後的進場才計入。</p>
       <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>最高浮盈</th><th>價差</th><th>含滑價</th></tr></thead><tbody id="dkBody"></tbody></table></div>
     </details>
 
     <details>
-      <summary>回測參考（啟動前，同一套規則）</summary>
+      <summary>回測參考（08:15 以前，同一套規則）</summary>
       <div class="stats" id="dkStats"></div>
       <div class="tbl"><table><thead><tr><th>進場時間</th><th>方向</th><th>進場</th><th>出場</th><th>出場原因</th><th>最高浮盈</th><th>價差</th><th>含滑價</th></tr></thead><tbody id="dkBtBody"></tbody></table></div>
     </details>
@@ -333,7 +334,8 @@ function doubleKSignals(B, kLength = 9, smoothK = 3) {
   return { sig, k, last };
 }
 
-const LAUNCH = 1794066300; // 2026/11/7 23:45 台北時間開始模擬
+const LAUNCH = 1794066300;
+const DK_LAUNCH = 1794096900; // 雙K鎖利規則從 2026/11/8 08:15（台北）開始記錄 // 2026/11/7 23:45 台北時間開始模擬
 const $ = id => document.getElementById(id);
 const fmtT = s => new Date(s * 1000).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 const fmtFull = ms => new Date(ms).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
@@ -405,7 +407,7 @@ function render(all, fetchedAt) {
   showErr("");
 
   $("fwdNote").textContent = `啟動時間 ${fmtFull(LAUNCH * 1000)}（台北），之後的進場才計入。`;
-  $("fwdBody").innerHTML = done.length ? rowsHTML(done) : `<tr><td colspan="8" class="mut" style="font-family:var(--display)">啟動後還沒有平倉紀錄</td></tr>`;
+  $("fwdBody").innerHTML = done.length ? rowsHTML(done) : `<tr><td colspan="8" class="mut" style="font-family:var(--display)">鎖利規則開始後還沒有平倉紀錄</td></tr>`;
   const btT = bt.trades.filter(t => t.et < LAUNCH);
   $("btStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(LAUNCH)}</b></div>`;
   $("btBody").innerHTML = rowsHTML(btT);
@@ -465,9 +467,9 @@ function renderDK(B, lastPx, fetchedAt, all) {
   // 訊號只看已收盤K；進場、停損與浮盈要算到正在走的這根（訊號K收盤後下一根一開盤就進場）
   const A = all || B, S = doubleKSignals(B);
   const sigA = S.sig.concat(new Array(A.t.length - B.t.length).fill(0));
-  const fwd = runDoubleK(A, sigA, { canEnter: t => t >= LAUNCH });
-  const bt = runDoubleK(B, S.sig, { canEnter: t => t < LAUNCH });
-  const done = fwd.trades.filter(t => t.et >= LAUNCH);
+  const fwd = runDoubleK(A, sigA, { canEnter: t => t >= DK_LAUNCH });
+  const bt = runDoubleK(B, S.sig, { canEnter: t => t < DK_LAUNCH });
+  const done = fwd.trades.filter(t => t.et >= DK_LAUNCH);
   const n = B.t.length, kNow = S.k[n - 1];
   $("dkUpd").textContent = fmtFull(fetchedAt);
   $("dkK").textContent = kNow.toFixed(1);
@@ -497,8 +499,8 @@ function renderDK(B, lastPx, fetchedAt, all) {
   }
   $("dkPill").className = "pill ok"; $("dkPill").lastChild.textContent = "運行中";
   $("dkBody").innerHTML = done.length ? dkRows(done) : `<tr><td colspan="8" class="mut" style="font-family:var(--display)">啟動後還沒有平倉紀錄</td></tr>`;
-  const btT = bt.trades.filter(t => t.et < LAUNCH);
-  $("dkStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(LAUNCH)}</b></div>`;
+  const btT = bt.trades.filter(t => t.et < DK_LAUNCH);
+  $("dkStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(DK_LAUNCH)}</b></div>`;
   $("dkBtBody").innerHTML = dkRows(btT);
   drawDK(B, S.sig, o);
 }
