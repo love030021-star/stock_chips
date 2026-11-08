@@ -410,7 +410,7 @@ function render(all, fetchedAt) {
   $("btStats").innerHTML = statsHTML(btT) + `<div class="kv"><span>回測期間</span><b>${fmtT(B.t[0])} – ${fmtT(LAUNCH)}</b></div>`;
   $("btBody").innerHTML = rowsHTML(btT);
   draw(B, fwd, lastPx);
-  renderDK(B, lastPx, fetchedAt);
+  renderDK(B, lastPx, fetchedAt, all);
 }
 
 function draw(B, r, lastPx) {
@@ -461,9 +461,11 @@ function nextStep(maxFav) {
 function dkRows(list) {
   return list.slice().reverse().map(t => `<tr><td>${fmtT(t.et)}</td><td class="${t.dir > 0 ? "ok" : "bad"}">${t.dir > 0 ? "多" : "空"}</td><td>${px(t.entry)}</td><td>${px(t.exit)}</td><td style="font-family:var(--display)">${t.why}</td><td>${t.maxFav.toFixed(0)}</td><td class="${cls(t.gross)}">${usd(t.gross)}</td><td class="${cls(t.pnl)}">${usd(t.pnl)}</td></tr>`).join("");
 }
-function renderDK(B, lastPx, fetchedAt) {
-  const S = doubleKSignals(B);
-  const fwd = runDoubleK(B, S.sig, { canEnter: t => t >= LAUNCH });
+function renderDK(B, lastPx, fetchedAt, all) {
+  // 訊號只看已收盤K；進場、停損與浮盈要算到正在走的這根（訊號K收盤後下一根一開盤就進場）
+  const A = all || B, S = doubleKSignals(B);
+  const sigA = S.sig.concat(new Array(A.t.length - B.t.length).fill(0));
+  const fwd = runDoubleK(A, sigA, { canEnter: t => t >= LAUNCH });
   const bt = runDoubleK(B, S.sig, { canEnter: t => t < LAUNCH });
   const done = fwd.trades.filter(t => t.et >= LAUNCH);
   const n = B.t.length, kNow = S.k[n - 1];
