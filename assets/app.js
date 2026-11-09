@@ -527,7 +527,7 @@
     syncMonthControl(id);
     W=null;SP=null;currentMarketMeta=null;$("#st-zone-title").closest(".st-card").hidden=true;
     $('#wave-chart').replaceChildren();$('#wave-counts').replaceChildren();
-    ['#st-trend','#st-figure','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).replaceChildren());
+    ['#st-trend','#st-figure','#st-count','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).replaceChildren());
     $('#wave-meta').textContent='載入此商品與月份的資料…';$('#st-meta').textContent='載入中…';
     $('#live').textContent='載入中…';
     if(CAPITAL_ONLY){liveStop();$('#data-date').textContent='等待此商品行情來源時間';}
@@ -536,7 +536,7 @@
     const d = await loadMarket(id);
     if (state.mkt !== id || request!==marketRequest) return;
     W = d.W; SP = null;currentMarketMeta=d.meta||null;
-    if(CAPITAL_ONLY){liveAnalysisRevision='';['#st-trend','#st-figure','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');}
+    if(CAPITAL_ONLY){liveAnalysisRevision='';['#st-trend','#st-figure','#st-count','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');}
     renderWave();
     renderStrategy(d.S);
     liveStart(id);
@@ -603,7 +603,7 @@
 
   function showAnalysisError(error){
     const note=$('#capital-analysis-info');if(note)note.textContent='即時分析服務未連線：'+error.message;
-    ['#st-trend','#st-figure','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');
+    ['#st-trend','#st-figure','#st-count','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');
     $('#st-meta').textContent='連線中斷，暫停顯示可進場訊號。';
   }
   let lastDailyCheck=0;
@@ -635,7 +635,7 @@
       const revision=market+'|'+(data.meta.generated_at||'')+'|'+data.meta.ready+'|'+data.meta.market_fresh;
       if(revision!==liveAnalysisRevision){
         liveAnalysisRevision=revision;W=data.W;SP=data.S;
-        ['#st-trend','#st-figure','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');
+        ['#st-trend','#st-figure','#st-count','#st-batches','#st-calc','#st-signal','#st-abc'].forEach(k=>$(k).innerHTML='');
         renderWave();renderStrategy(data.S);
       }
       if(data.meta?.contract_mode){currentMarketMeta=data.meta;showContractStatus(data.meta);}else showAnalysisStatus(data.meta);
@@ -681,7 +681,7 @@
     const allocation=$("#st-zone-title").closest(".st-card");allocation.hidden=true;
     if (!S) {
       $("#st-meta").textContent = CAPITAL_ONLY ? "等待群益回補同月份歷史K線；資料足夠後自動計算。" : "這個商品的波段布局資料還沒產生，下一次每日更新後會出現。";
-      ["#st-trend", "#st-figure", "#st-batches", "#st-calc", "#st-signal", "#st-abc"].forEach((k) => { $(k).innerHTML = ""; });
+      ["#st-trend", "#st-figure", "#st-count", "#st-batches", "#st-calc", "#st-signal", "#st-abc"].forEach((k) => { $(k).innerHTML = ""; });
       return;
     }
     if (!S.plans && S.plan) S = Object.assign({}, S, { plans: { D: Object.assign({ tf: "D", tf_label: "日線", data_t: S.daily_t || "", data_close: S.daily_close, abc: S.abc || [], signal: S.signal }, S.plan) } });
@@ -708,9 +708,10 @@
     if (!P.batches || !P.batches.length) {
       $("#st-zone-title").textContent = "回檔區間分批";
       $("#st-batches").innerHTML = `<tr><td colspan="4" class="sub">這個週期目前沒有可布局的推動浪結構。</td></tr>`;
-      $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; $("#st-figure").innerHTML = ""; return;
+      $("#st-calc").innerHTML = ""; $("#st-signal").innerHTML = ""; $("#st-abc").innerHTML = ""; $("#st-figure").innerHTML = ""; $("#st-count").innerHTML = ""; return;
     }
     try {
+      $("#st-count").innerHTML = countHtml(P);
       $("#st-figure").innerHTML = planFigure(P, S);
       const pw = document.querySelector("#st-figure .plan-wrap");   // 手機上先捲到最新的 K 線
       if (pw) pw.scrollLeft = pw.scrollWidth;
@@ -770,6 +771,44 @@
     "回檔滿足 1": "一般修正最常見的滿足區，布局主力。",
     "回檔滿足 2": "最深的布局區，已接近波浪失效價，碰到時要先檢查數浪是否還成立。",
   };
+  // 數浪分析：從起點逐浪列出幅度、比例與每個轉折點的 KD
+  function countHtml(P) {
+    const C = P.count;
+    if (!C || !C.waves || !C.waves.length) return "";
+    const tf = esc(P.tf_label || "");
+    const nm = (l) => (/^\d$/.test(l) ? (l === "0" ? "起點" : `第 ${l} 浪`) : `${l} 浪`);
+    const ts = (t) => esc(String(t).slice(5).replace("-", "/"));
+    const kdc = (n) => n && n.kd ? `<span class="${n.kd.ok ? "ok" : "no"}">K ${n.kd.k}／D ${n.kd.d}，${esc(n.kd.state)} ${n.kd.ok ? "✓" : "✗"}</span>` : "—";
+    const node = {}; C.nodes.forEach((n) => { node[n.label] = n; });
+    const n0 = C.nodes[0];
+    const rows = C.waves.map((w) => {
+      const n = node[w.label];
+      const up = w.p1 > w.p0;
+      return `<tr><td><b>${nm(w.label)}</b></td><td>${ts(w.from)} → ${ts(w.to)}</td><td class="r">${fp(w.p0)} → ${fp(w.p1)}</td><td class="r ${up ? "up" : "down"}">${up ? "+" : "−"}${fmt(w.len)}</td><td class="r">${w.bars ?? ""}</td><td>${esc(w.ratio)}</td><td>${kdc(n)}</td></tr>`;
+    }).join("");
+    let cur = "";
+    if (C.cur) {
+      const up = C.cur.p > C.cur.p0, lw = C.waves[C.waves.length - 1];
+      const pct = lw && lw.len ? ` · 目前回到前一浪的 ${(C.cur.len / lw.len * 100).toFixed(0)}%` : "";
+      cur = `<tr class="cur"><td><b>進行中</b></td><td>${ts(C.cur.from)} → 現在</td><td class="r">${fp(C.cur.p0)} → ${fp(C.cur.p)}</td><td class="r ${up ? "up" : "down"}">${up ? "+" : "−"}${fmt(C.cur.len)}</td><td></td><td>${esc(C.now || "")}${pct}</td><td>K ${C.cur.kd.k}／D ${C.cur.kd.d}，${esc(C.cur.kd.state)}</td></tr>`;
+    }
+    let est = "";   // 推估走勢：接在進行中這一浪之後，依序推到 5 浪後的 A、B、C
+    const PJ = P.proj || [];
+    if (PJ.length) {
+      let prev = C.cur ? C.cur.p : C.waves[C.waves.length - 1].p1;
+      est = PJ.map(([lab, v], i) => {
+        const up = v > prev, d = Math.abs(v - prev);
+        const why = i === 0 ? "目前這一浪的預估終點" : /^\d$/.test(lab) ? (lab === "2" || lab === "4" ? "回檔" : "延伸") : "5 浪後修正";
+        const row = `<tr class="est"><td><b>推估 ${nm(lab)}</b></td><td>—</td><td class="r">${fp(prev)} → ${fp(v)}</td><td class="r ${up ? "up" : "down"}">${up ? "+" : "−"}${fmt(d)}</td><td></td><td>${why}</td><td>${up ? "到頂時看 KD 高檔／死亡交叉" : "到底時看 KD 低檔／黃金交叉"}</td></tr>`;
+        prev = v; return row;
+      }).join("");
+    }
+    const okN = C.nodes.filter((n) => n.kd && n.kd.ok).length;
+    return `<div class="st-head"><h3>數浪分析（${tf}，從起點開始）</h3><small>${esc(C.trend || "")}｜轉折點 KD 配合 ${okN}／${C.nodes.length}</small></div>
+      <div class="cnt-wrap"><table class="cnt-t"><thead><tr><th>浪</th><th>時間</th><th class="r">價位</th><th class="r">幅度</th><th class="r">K 棒數</th><th>比例</th><th>轉折點 KD(9,3,3)</th></tr></thead>
+      <tbody><tr><td><b>起點</b></td><td>${ts(n0.t)}</td><td class="r">${fp(n0.p)}</td><td></td><td></td><td>${n0.kind === "L" ? "波段低點" : "波段高點"}</td><td>${kdc(n0)}</td></tr>${rows}${cur}${est}</tbody></table></div>
+      <p class="hint">KD 配合：低點要 K ≤ 30 或低檔黃金交叉，高點要 K ≥ 70 或高檔死亡交叉（轉折點前 2 根到後 3 根內）。比例：第 2、4 浪看回檔前一浪幾 %，第 3、5 浪看是第 1 浪的幾倍。「推估」列是依布局同一套比例機械推算（第 2 浪回 0.618、第 4 浪回 0.382、3／5 浪以第 1 浪延伸、ABC 回整段 0.382），實際走出來後每次重算。</p>`;
+  }
   function planFigure(P, S) {
     if (!P.bars || !P.bars.length || !P.batches) return "";
     const up = P.dir === 1, B = P.bars, n = B.length, last = S.last;

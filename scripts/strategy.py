@@ -400,6 +400,57 @@ def project(P: dict, last) -> list:
     return [[n, r10(v)] for n, v in seq if v is not None and v > 0]
 
 
+def wave_count(P: dict, bars: dict, last) -> dict | None:
+    """數浪分析（從起點開始）：每一浪的起訖、幅度、比例、K 棒數，以及每個轉折點當時的 KD(9,3,3) 與是否配合。"""
+    pts = P.get("points") or []
+    if len(pts) < 2:
+        return None
+    ks = sorted(bars)
+    B = [[k] + list(bars[k][:4]) for k in ks]
+    K, D = txf.kd(B)
+    pos = {k: i for i, k in enumerate(ks)}
+
+    def kd_at(i, kind):
+        if i is None:
+            return None
+        k, d = K[i], D[i]
+        ok = txf.kd_turn(K, D, i, kind)
+        if kind == "L":
+            st = "低檔" if k <= 30 else ("黃金交叉" if ok else "未到低檔")
+        else:
+            st = "高檔" if k >= 70 else ("死亡交叉" if ok else "未到高檔")
+        return {"k": round(k, 1), "d": round(d, 1), "ok": ok, "state": st}
+
+    nodes = []
+    for j, (t, px, lab) in enumerate(pts):
+        nb = pts[j + 1][1] if j + 1 < len(pts) else None
+        pv = pts[j - 1][1] if j else None
+        kind = ("H" if px > pv else "L") if pv is not None else ("L" if nb is not None and nb > px else "H")
+        nodes.append({"t": t, "p": px, "label": lab, "kind": kind, "kd": kd_at(pos.get(t), kind)})
+    L1 = abs(pts[1][1] - pts[0][1]) or 1
+    waves = []
+    for j in range(1, len(pts)):
+        a, b = pts[j - 1], pts[j]
+        ln = abs(b[1] - a[1])
+        lab = b[2]
+        if lab in ("2", "4"):
+            base = abs(a[1] - pts[j - 2][1]) or 1
+            ratio = f"回檔 {ln / base * 100:.0f}%（前一浪）"
+        elif lab == "1":
+            ratio = "基準"
+        else:
+            ratio = f"第 1 浪的 {ln / L1:.2f} 倍"
+        ia, ib = pos.get(a[0]), pos.get(b[0])
+        waves.append({"label": lab, "from": a[0], "to": b[0], "p0": a[1], "p1": b[1], "len": r10(ln),
+                      "bars": (ib - ia) if ia is not None and ib is not None else None, "ratio": ratio})
+    cur = None
+    if last is not None:
+        k, d = K[-1], D[-1]
+        cur = {"from": pts[-1][0], "p0": pts[-1][1], "p": last, "len": r10(abs(last - pts[-1][1])),
+               "kd": {"k": round(k, 1), "d": round(d, 1), "state": ("高檔" if k >= 70 else "低檔" if k <= 30 else "中段") + ("，K>D" if k > d else "，K<D")}}
+    return {"nodes": nodes, "waves": waves, "cur": cur, "now": P.get("now"), "trend": P.get("trend")}
+
+
 MAJOR_OF = {"M5": ("M30", "H", "D"), "M30": ("H", "D"), "H": ("D",), "D": ()}
 
 
@@ -459,6 +510,11 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
         else:
             P["signal"] = rule123(hb, T["d"], P["points"][-1][0], P, TFN[et], TFN[tf])
         P["proj"] = project(P, last)
+        try:
+            P["count"] = wave_count(P, bars, last)
+        except Exception as e:  # noqa: BLE001
+            P["count"] = None
+            print("數浪分析失敗", tf, e)
         for mt in MAJOR_OF[tf]:   # 大一級的整段浪：標在小週期圖上，看目前在大浪的哪一段
             M = out["plans"].get(mt)
             if M and M.get("dir") and "推動浪" in (M.get("trend") or "") and len(M.get("points") or []) >= 2:

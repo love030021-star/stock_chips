@@ -420,3 +420,10 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .lc-t tr.fut td.k { outline: 2px solid #C98A0B; }
 .lc-t td.inc { color: #7b4fb8; font-weight: 700; } .lc-t td.pain { color: var(--muted); } .lc-t td.pain.best { color: #8a1c1c; font-weight: 800; }
 .lc-al { margin: 0; padding-left: 18px; } .lc-al li { margin: 6px 0; line-height: 1.5; } .lc-al li.up { color: var(--up); } .lc-al li.down { color: var(--down); }
+
+.st-count .cnt-wrap { overflow-x: auto; }
+.cnt-t { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; min-width: 700px; }
+.cnt-t th, .cnt-t td { padding: 5px 6px; border-top: 1px solid var(--line); white-space: nowrap; text-align: left; }
+.cnt-t .r { text-align: right; } .cnt-t tr.cur td { background: rgba(47,111,179,.08); }
+.cnt-t .ok { color: #2e7d32; } .cnt-t .no { color: #b3261e; }
+.cnt-t tr.est td { color: #2f6fb3; background: rgba(47,111,179,.04); font-style: italic; }
