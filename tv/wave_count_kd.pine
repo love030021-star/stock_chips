@@ -1,0 +1,340 @@
+//@version=6
+// 數浪＋KD＋推估走勢（與網站 love030021-star.github.io/stock_chips 布局的數浪同一套規則）
+// 1. 轉折：ATR(14) 倍數的 ZigZag；日線 2／2.5／3 倍，60、30 分 2.5／3.5／4.5 倍，5 分以下 3／4／5.5 倍，三種都試
+// 2. 只找推動浪（1～5 浪）：第 2 浪不破起點、第 3 浪不是最短、第 4 浪不與第 1 浪重疊，比例越接近理想分數越高
+// 3. KD(9,3,3)：低點要 K≤30 或黃金交叉、高點要 K≥70 或死亡交叉（轉折前 2 根到後 3 根）；先找每個轉折都配合的，找不到才放寬一個
+// 4. K 棒只取最近一段：日線以上 600 根，分 K 1500 根
+// 5. 推估：第 2 浪回 0.618、第 4 浪回 0.382、3／5 浪以第 1 浪長度延伸（1.618、1 倍）、5 浪後 ABC 回整段 0.382
+indicator("數浪＋KD＋推估走勢", "數浪KD", overlay = true, max_lines_count = 200, max_labels_count = 200, max_bars_back = 5000)
+
+grpA = "數浪"
+autoM   = input.bool(true, "依週期自動選 ATR 倍數", group = grpA)
+m1In    = input.float(2.5, "自訂 ATR 倍數 1", step = 0.5, group = grpA)
+m2In    = input.float(3.5, "自訂 ATR 倍數 2", step = 0.5, group = grpA)
+m3In    = input.float(4.5, "自訂 ATR 倍數 3", step = 0.5, group = grpA)
+lbAuto  = input.bool(true, "自動 K 棒範圍（日線 600／分 K 1500）", group = grpA)
+lbIn    = input.int(1500, "自訂 K 棒範圍", minval = 100, maxval = 4900, group = grpA)
+grpB = "顯示"
+showProj = input.bool(true, "顯示推估走勢", group = grpB)
+projGap  = input.int(0, "推估每段間隔 K 棒數（0＝自動）", minval = 0, group = grpB)
+showTbl  = input.bool(true, "顯示數浪表", group = grpB)
+tblPos   = input.string("右上", "表格位置", options = ["右上", "右下", "左上", "左下"], group = grpB)
+cWave    = input.color(color.new(#C98A0B, 0), "浪的連線", group = grpB)
+cProj    = input.color(color.new(#2f6fb3, 0), "推估走勢", group = grpB)
+
+// ---------- 週期設定 ----------
+isDay = timeframe.isdwm
+secs  = timeframe.in_seconds()
+float mA = autoM ? (isDay ? 2.0 : secs <= 900 ? 3.0 : 2.5) : m1In
+float mB = autoM ? (isDay ? 2.5 : secs <= 900 ? 4.0 : 3.5) : m2In
+float mC = autoM ? (isDay ? 3.0 : secs <= 900 ? 5.5 : 4.5) : m3In
+int lookback = lbAuto ? (isDay ? 600 : 1500) : lbIn
+inWin = bar_index >= last_bar_index - lookback + 1
+
+// ---------- ATR(14)、KD(9,3,3)：從範圍起點開始算（與網站相同） ----------
+var float atrV = na
+var float kV = 50.0
+var float dV = 50.0
+var int  w0 = na
+if inWin
+    if na(w0)
+        w0 := bar_index
+    tr = bar_index == w0 ? high - low : math.max(high - low, math.abs(high - close[1]), math.abs(low - close[1]))
+    atrV := na(atrV) ? tr : (atrV * 13 + tr) / 14
+    int n9 = math.min(9, bar_index - w0 + 1)
+    float h9 = high
+    float l9 = low
+    for j = 0 to n9 - 1
+        h9 := math.max(h9, high[j])
+        l9 := math.min(l9, low[j])
+    rsv = h9 == l9 ? 50.0 : (close - l9) / (h9 - l9) * 100
+    kV := kV * 2 / 3 + rsv / 3
+    dV := dV * 2 / 3 + kV / 3
+
+// ---------- ZigZag（三種倍數同時跑） ----------
+type ZZ
+    float mult
+    int   trend = 0
+    int   hiI
+    float hiP
+    int   loI
+    float loP
+    int   ext
+    float extP
+    float extA
+    float hiA
+    float loA
+    array<int>   pi
+    array<float> pp
+    array<int>   pt
+
+method step(ZZ z) =>
+    if z.trend == 0
+        if na(z.hiP) or high > z.hiP
+            z.hiI := bar_index, z.hiP := high, z.hiA := atrV
+        if na(z.loP) or low < z.loP
+            z.loI := bar_index, z.loP := low, z.loA := atrV
+        if z.hiP - z.loP >= atrV * z.mult
+            if z.hiI > z.loI
+                z.pi.push(z.loI), z.pp.push(z.loP), z.pt.push(-1)
+                z.trend := 1, z.ext := z.hiI, z.extP := z.hiP, z.extA := z.hiA
+            else
+                z.pi.push(z.hiI), z.pp.push(z.hiP), z.pt.push(1)
+                z.trend := -1, z.ext := z.loI, z.extP := z.loP, z.extA := z.loA
+    else if z.trend == 1
+        if high >= z.extP
+            z.ext := bar_index, z.extP := high, z.extA := atrV
+        else if z.extP - low >= z.extA * z.mult
+            z.pi.push(z.ext), z.pp.push(z.extP), z.pt.push(1)
+            z.trend := -1, z.ext := bar_index, z.extP := low, z.extA := atrV
+    else
+        if low <= z.extP
+            z.ext := bar_index, z.extP := low, z.extA := atrV
+        else if high - z.extP >= z.extA * z.mult
+            z.pi.push(z.ext), z.pp.push(z.extP), z.pt.push(-1)
+            z.trend := 1, z.ext := bar_index, z.extP := high, z.extA := atrV
+    z
+
+var ZZ zA = ZZ.new(mA, pi = array.new<int>(), pp = array.new<float>(), pt = array.new<int>())
+var ZZ zB = ZZ.new(mB, pi = array.new<int>(), pp = array.new<float>(), pt = array.new<int>())
+var ZZ zC = ZZ.new(mC, pi = array.new<int>(), pp = array.new<float>(), pt = array.new<int>())
+if inWin and bar_index > w0
+    zA.step()
+    zB.step()
+    zC.step()
+
+// ---------- 規則與分數 ----------
+close1(float r, float a, float b, float c, float tol) =>
+    math.max(math.exp(-math.pow((r - a) / tol, 2)), math.exp(-math.pow((r - b) / tol, 2)), math.exp(-math.pow((r - c) / tol, 2)))
+
+// x：正規化成上升方向的轉折價；cur：進行中極值（正規化）。回傳 [是否符合, 分數]
+checkImp(array<float> x, float cur) =>
+    int k = x.size() - 1
+    bool ok = x.get(1) - x.get(0) > 0
+    float gs = 0.0
+    int gn = 0
+    float w1 = x.get(1) - x.get(0)
+    if ok and k >= 2
+        r2 = (x.get(1) - x.get(2)) / w1
+        if x.get(2) <= x.get(0) or r2 <= 0
+            ok := false
+        else
+            gs += math.max(math.exp(-math.pow((r2 - 0.5) / 0.13, 2)), math.exp(-math.pow((r2 - 0.618) / 0.13, 2))), gn += 1
+    if ok and k >= 3
+        if x.get(3) <= x.get(1)
+            ok := false
+        else
+            gs += close1((x.get(3) - x.get(2)) / w1, 1.618, 2.618, 1.0, 0.3), gn += 1
+    if ok and k >= 4
+        if x.get(4) <= x.get(1)
+            ok := false
+        else
+            gs += close1((x.get(3) - x.get(4)) / (x.get(3) - x.get(2)), 0.382, 0.236, 0.5, 0.1), gn += 1
+    if ok and k >= 5
+        w3 = x.get(3) - x.get(2)
+        w5 = x.get(5) - x.get(4)
+        if w5 <= 0 or w3 < math.min(w1, w5)
+            ok := false
+        else
+            g5 = close1(w5 / w1, 1.0, 0.618, 1.618, 0.22)
+            gs += x.get(5) <= x.get(3) ? g5 * 0.5 : g5, gn += 1
+    if ok and not na(cur)
+        if k == 1 and cur <= x.get(0)
+            ok := false
+        if k == 3 and cur <= x.get(1)
+            ok := false
+        if k == 4 and (x.get(3) - x.get(2)) < w1 and cur - x.get(4) > (x.get(3) - x.get(2))
+            ok := false
+        if k == 5 and cur > x.get(5)
+            ok := false
+    [ok, gn > 0 ? gs / gn : 0.4]
+
+signif(ZZ z, int s, int d) =>
+    float p = z.pp.get(s) * d
+    int cnt = 0
+    int tot = 0
+    int j = s - 2
+    while j >= 0 and j > s - 7
+        tot += 1
+        if p <= z.pp.get(j) * d
+            cnt += 1
+        j -= 2
+    tot == 0 ? 0.5 : float(cnt) / tot
+
+kdAt(int i) =>
+    int off = bar_index - i
+    [kV[off], dV[off]]
+
+kdTurn(int i, int kind) =>
+    bool ok = false
+    for j = i - 2 to math.min(bar_index, i + 3)
+        if j > w0
+            int off = bar_index - j
+            k0 = kV[off]
+            k1 = kV[off + 1]
+            d0 = dV[off]
+            d1 = dV[off + 1]
+            if kind == -1 and (k0 <= 30 or (k1 <= d1 and k0 > d0))
+                ok := true
+            if kind == 1 and (k0 >= 70 or (k1 >= d1 and k0 < d0))
+                ok := true
+    ok
+
+// ---------- 找最佳推動浪 ----------
+var line[]  drawL = array.new<line>()
+var label[] drawB = array.new<label>()
+var table   tbl = na
+varip string prevNow = ""
+
+lgx(float base, float a, float b, float m) =>
+    float lin = base + (b - a) * m
+    lin > base * 0.15 or a <= 0 or b <= 0 or base <= 0 ? lin : math.exp(math.log(base) + (math.log(b) - math.log(a)) * m)
+rt(float base, float other, float r) =>
+    base - (base - other) * r
+
+fmtP(float v) =>
+    str.tostring(v, format.mintick)
+
+if barstate.islast
+    if not na(tbl)
+        tbl.delete()
+    for l in drawL
+        l.delete()
+    for b in drawB
+        b.delete()
+    drawL.clear()
+    drawB.clear()
+    // 逐一嘗試三種倍數、k = 1～5，先嚴格（每個轉折 KD 都配合）再放寬一個
+    float bestScore = -1.0
+    ZZ   bz = na
+    int  bs = 0
+    int  bk = 0
+    int  bd = 0
+    for pass = 0 to 1
+        if bestScore < 0
+            for zi = 0 to 2
+                ZZ z = zi == 0 ? zA : zi == 1 ? zB : zC
+                int n = z.pp.size()
+                float curP = z.trend == 0 ? na : z.extP
+                for k = 1 to 5
+                    int s = n - 1 - k
+                    if s >= 0
+                        int d = z.pp.get(s + 1) > z.pp.get(s) ? 1 : -1
+                        array<float> x = array.new<float>()
+                        for j = 0 to k
+                            x.push(z.pp.get(s + j) * d)
+                        [ok, g] = checkImp(x, na(curP) ? na : curP * d)
+                        if ok
+                            int miss = 0
+                            for j = 0 to k
+                                if not kdTurn(z.pi.get(s + j), z.pt.get(s + j))
+                                    miss += 1
+                            if miss <= (pass == 0 ? 0 : 1)
+                                float sc = 0.55 * g + 0.25 * signif(z, s, d) + 0.04 * k
+                                if sc > bestScore
+                                    bestScore := sc, bz := z, bs := s, bk := k, bd := d
+    string nowS = ""
+    if na(bz)
+        nowS := "找不到符合規則的推動浪"
+        if showTbl
+            tbl := table.new(position.top_right, 1, 1, bgcolor = color.new(color.white, 10), border_width = 1)
+            tbl.cell(0, 0, "數浪：" + nowS, text_size = size.small)
+    else
+        array<int>   P_i = array.new<int>()
+        array<float> P_p = array.new<float>()
+        array<int>   P_t = array.new<int>()
+        for j = 0 to bk
+            P_i.push(bz.pi.get(bs + j)), P_p.push(bz.pp.get(bs + j)), P_t.push(bz.pt.get(bs + j))
+        nowS := bk == 1 ? "第 2 浪回檔" : bk == 2 ? "第 3 浪推進" : bk == 3 ? "第 4 浪回檔" : bk == 4 ? "第 5 浪推進" : "5 浪後 ABC 修正"
+        string trendS = bd == 1 ? "上升推動浪" : "下跌推動浪"
+        // 浪的連線與標號（含轉折點 KD）
+        int okN = 0
+        for j = 0 to bk
+            int i = P_i.get(j)
+            float p = P_p.get(j)
+            bool top = P_t.get(j) == 1
+            [kk, dd] = kdAt(i)
+            bool kOk = kdTurn(i, P_t.get(j))
+            okN += kOk ? 1 : 0
+            if j > 0
+                drawL.push(line.new(P_i.get(j - 1), P_p.get(j - 1), i, p, color = cWave, width = 2))
+            string txt = (j == 0 ? "起點" : str.tostring(j)) + "\n" + fmtP(p) + "\nK" + str.tostring(kk, "#") + (kOk ? " ✓" : " ✗")
+            drawB.push(label.new(i, p, txt, style = top ? label.style_label_down : label.style_label_up, color = color.new(cWave, 15), textcolor = color.white, size = size.small))
+        // 進行中這一浪
+        drawL.push(line.new(P_i.get(bk), P_p.get(bk), bar_index, close, color = cWave, width = 1, style = line.style_dotted))
+        // 推估
+        float x0 = P_p.get(0)
+        float x1 = P_p.get(1)
+        array<string> pjN = array.new<string>()
+        array<float>  pjV = array.new<float>()
+        float w5v = na
+        if bk == 1
+            w2 = rt(x1, x0, 0.618)
+            w3 = lgx(w2, x0, x1, 1.618)
+            w4 = rt(w3, w2, 0.382)
+            w5v := lgx(w4, x0, x1, 1.0)
+            pjN.push("2"), pjV.push(w2), pjN.push("3"), pjV.push(w3), pjN.push("4"), pjV.push(w4), pjN.push("5"), pjV.push(w5v)
+        else if bk == 2
+            w3 = lgx(P_p.get(2), x0, x1, 1.618)
+            w4 = rt(w3, P_p.get(2), 0.382)
+            w5v := lgx(w4, x0, x1, 1.0)
+            pjN.push("3"), pjV.push(w3), pjN.push("4"), pjV.push(w4), pjN.push("5"), pjV.push(w5v)
+        else if bk == 3
+            w4 = rt(P_p.get(3), P_p.get(2), 0.382)
+            w5v := lgx(w4, x0, x1, 1.0)
+            pjN.push("4"), pjV.push(w4), pjN.push("5"), pjV.push(w5v)
+        else if bk == 4
+            w5v := lgx(P_p.get(4), x0, x1, 1.0)
+            pjN.push("5"), pjV.push(w5v)
+        else
+            w5v := P_p.get(5)
+        aV = rt(w5v, x0, 0.382)
+        bV = aV + (w5v - aV) * 0.5
+        cV = bV - (w5v - aV)
+        pjN.push("A"), pjV.push(aV), pjN.push("B"), pjV.push(bV), pjN.push("C"), pjV.push(cV)
+        if showProj
+            int gap0 = projGap > 0 ? projGap : math.max(3, math.round(float(P_i.get(bk) - P_i.get(0)) / bk * 0.5))
+            int gap = math.min(gap0, int(480 / pjN.size()))   // 未來 K 棒最多畫到 500 根
+            int px = bar_index
+            float pv = close
+            for j = 0 to pjN.size() - 1
+                int nx = px + gap
+                float nv = pjV.get(j)
+                drawL.push(line.new(px, pv, nx, nv, color = cProj, width = 2, style = line.style_dashed))
+                drawB.push(label.new(nx, nv, "推估 " + pjN.get(j) + "\n" + fmtP(nv), style = nv >= pv ? label.style_label_down : label.style_label_up, color = color.new(cProj, 20), textcolor = color.white, size = size.small))
+                px := nx, pv := nv
+        // 表格
+        if showTbl
+            pos = tblPos == "右上" ? position.top_right : tblPos == "右下" ? position.bottom_right : tblPos == "左上" ? position.top_left : position.bottom_left
+            int rows = bk + 4 + pjN.size()
+            tbl := table.new(pos, 4, rows, bgcolor = color.new(color.white, 8), border_color = color.new(color.gray, 70), border_width = 1)
+            tbl.cell(0, 0, trendS + "｜" + nowS + "｜KD 配合 " + str.tostring(okN) + "/" + str.tostring(bk + 1) + "｜ATR×" + str.tostring(bz.mult), text_size = size.small, text_halign = text.align_left)
+            tbl.merge_cells(0, 0, 3, 0)
+            tbl.cell(0, 1, "浪", text_size = size.small), tbl.cell(1, 1, "價位", text_size = size.small), tbl.cell(2, 1, "幅度／比例", text_size = size.small), tbl.cell(3, 1, "轉折 KD", text_size = size.small)
+            float L1 = math.abs(x1 - x0)
+            for j = 0 to bk
+                float p = P_p.get(j)
+                [kk, dd] = kdAt(P_i.get(j))
+                bool kOk = kdTurn(P_i.get(j), P_t.get(j))
+                string rto = ""
+                if j > 0
+                    float ln = math.abs(p - P_p.get(j - 1))
+                    rto := str.tostring(ln, format.mintick) + "｜" + (j == 1 ? "基準" : (j == 2 or j == 4) ? "回 " + str.tostring(ln / math.abs(P_p.get(j - 1) - P_p.get(j - 2)) * 100, "#") + "%" : str.tostring(ln / L1, "#.##") + " 倍")
+                tbl.cell(0, j + 2, j == 0 ? "起點" : "第 " + str.tostring(j) + " 浪", text_size = size.small)
+                tbl.cell(1, j + 2, fmtP(p), text_size = size.small)
+                tbl.cell(2, j + 2, rto, text_size = size.small)
+                tbl.cell(3, j + 2, "K" + str.tostring(kk, "#") + "/D" + str.tostring(dd, "#") + (kOk ? " ✓" : " ✗"), text_size = size.small, text_color = kOk ? color.green : color.red)
+            int r0 = bk + 2
+            tbl.cell(0, r0, "進行中", text_size = size.small), tbl.cell(1, r0, fmtP(close), text_size = size.small)
+            tbl.cell(2, r0, str.tostring(math.abs(close - P_p.get(bk)), format.mintick), text_size = size.small)
+            tbl.cell(3, r0, "K" + str.tostring(kV, "#") + "/D" + str.tostring(dV, "#"), text_size = size.small)
+            for j = 0 to pjN.size() - 1
+                tbl.cell(0, r0 + 1 + j, "推估 " + pjN.get(j), text_size = size.small, text_color = cProj)
+                tbl.cell(1, r0 + 1 + j, fmtP(pjV.get(j)), text_size = size.small, text_color = cProj)
+                tbl.cell(2, r0 + 1 + j, "", text_size = size.small)
+                tbl.cell(3, r0 + 1 + j, "", text_size = size.small)
+        // 狀態改變時發警示（在 TradingView 建立警示時選「任何 alert() 函數呼叫」）
+        string key = trendS + nowS + str.tostring(P_i.get(0))
+        if prevNow != "" and key != prevNow
+            alert("數浪改變：" + syminfo.ticker + " " + timeframe.period + " " + trendS + "，" + nowS, alert.freq_once_per_bar_close)
+        prevNow := key
