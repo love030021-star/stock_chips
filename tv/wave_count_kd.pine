@@ -167,7 +167,12 @@ signif(ZZ z, int s, int d) =>
 
 kdAt(int i) =>
     int j = i - w0
-    j >= 0 and j < kArr.size() ? [kArr.get(j), dArr.get(j)] : [na, na]
+    float k = na
+    float d = na
+    if j >= 0 and j < kArr.size()
+        k := kArr.get(j)
+        d := dArr.get(j)
+    [k, d]
 
 kdTurn(int i, int kind) =>
     bool ok = false
