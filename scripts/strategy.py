@@ -493,6 +493,8 @@ def build_plans(W: dict, bars_by_tf: dict, pt: dict) -> dict:
                 pass
         i0 = max(0, i0, len(ks) - 320)
         P["bars"] = [[k] + [r10(v) for v in bars[k][:4]] for k in ks[i0:]]
+        _K, _D = txf.kd([[k] + list(bars[k][:4]) for k in ks])   # 用全部 K 線算 KD，再取圖上那段
+        P["kd_series"] = [[round(a, 1), round(b, 1)] for a, b in zip(_K[i0:], _D[i0:])]
         P["partial"] = bool(tf == "D" and len(bars[max(bars)]) > 6)
         if tf == "D":
             major = P

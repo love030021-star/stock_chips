@@ -427,3 +427,16 @@ table.r123 { width: 100%; margin-top: 6px; } table.r123 td { padding: 5px 0; bor
 .cnt-t .r { text-align: right; } .cnt-t tr.cur td { background: rgba(47,111,179,.08); }
 .cnt-t .ok { color: #2e7d32; } .cnt-t .no { color: #b3261e; }
 .cnt-t tr.est td { color: #2f6fb3; background: rgba(47,111,179,.04); font-style: italic; }
+
+.cnt-fig { overflow-x: auto; margin: 6px 0 10px; } .cnt-svg { width: 100%; min-width: 760px; display: block; }
+.cnt-svg .cg { stroke: var(--line); stroke-width: 1; } .cnt-svg .ct { fill: var(--muted); font-size: 11px; }
+.cnt-svg .cu { stroke: #c0392b; fill: #c0392b; } .cnt-svg .cd { stroke: #1e8449; fill: #1e8449; }
+.cnt-svg .cw { fill: none; stroke: #C98A0B; stroke-width: 2.5; } .cnt-svg .cn { fill: #C98A0B; }
+.cnt-svg .cv { stroke: #C98A0B; stroke-width: 1; stroke-dasharray: 2 4; opacity: .6; }
+.cnt-svg .cl { fill: #8a5a00; font-size: 15px; font-weight: 800; } .cnt-svg .cp { fill: var(--ink); font-size: 11px; }
+.cnt-svg .cnow { fill: #111; } .cnt-svg .cj { fill: none; stroke: #2f6fb3; stroke-width: 2; stroke-dasharray: 5 4; }
+.cnt-svg .cjp { fill: #2f6fb3; } .cnt-svg .cjl { fill: #2f6fb3; font-size: 14px; font-weight: 800; } .cnt-svg .cjv { fill: #2f6fb3; font-size: 11px; }
+.cnt-svg .kbg { fill: rgba(127,127,127,.05); } .cnt-svg .kgl { stroke: #b3261e; stroke-width: 1; stroke-dasharray: 4 4; opacity: .5; }
+.cnt-svg .kk { fill: none; stroke: #2f6fb3; stroke-width: 1.6; } .cnt-svg .kdl { fill: none; stroke: #e67e22; stroke-width: 1.6; }
+.cnt-svg .kkt { fill: #2f6fb3; font-weight: 800; } .cnt-svg .kdt { fill: #e67e22; font-weight: 800; }
+.cnt-svg .kok { fill: #2e7d32; } .cnt-svg .kno { fill: #b3261e; } .cnt-svg .kokt { fill: #2e7d32; font-size: 11px; font-weight: 700; } .cnt-svg .knot { fill: #b3261e; font-size: 11px; font-weight: 700; }

@@ -772,6 +772,55 @@
     "回檔滿足 2": "最深的布局區，已接近波浪失效價，碰到時要先檢查數浪是否還成立。",
   };
   // 數浪分析：從起點逐浪列出幅度、比例與每個轉折點的 KD
+  // 數浪圖：從起點開始的 K 線＋浪的連線與標號＋推估路徑，下方 KD(9,3,3)，轉折點標 KD 是否配合
+  function countFigure(P) {
+    const C = P.count, AB = P.bars || [], KS = P.kd_series || [];
+    if (!C || !AB.length || KS.length !== AB.length) return "";
+    const idx0 = Math.max(0, AB.findIndex((b) => b[0] >= C.nodes[0].t) - 4);
+    const B = AB.slice(idx0), KD = KS.slice(idx0), n = B.length;
+    const at = {}; B.forEach((b, i) => { at[b[0]] = i; });
+    const PJ = P.proj || [], last = C.cur ? C.cur.p : B[n - 1][4];
+    const vals = [...B.map((b) => b[2]), ...B.map((b) => b[3]), ...PJ.map((p) => p[1])];
+    let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.07; lo -= pad; hi += pad;
+    const fut = PJ.length ? Math.min(380, 60 + PJ.length * 50) : 40;
+    const W = 980 + fut, pl = 8, pr = 64, pt = 22, ph = 300, gap = 26, kh = 110, H = pt + ph + gap + kh + 22;
+    const cw = (W - pl - pr - fut) / n, X = (i) => pl + cw * (i + 0.5);
+    const Y = (v) => pt + (hi - v) / (hi - lo) * ph;
+    const ky0 = pt + ph + gap, KY = (v) => ky0 + (100 - v) / 100 * kh;
+    let g = "";
+    for (let j = 0; j <= 4; j++) { const v = lo + (hi - lo) * j / 4; g += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" class="cg"/><text x="${W - pr + 4}" y="${Y(v) + 4}" class="ct">${fmt(v)}</text>`; }
+    B.forEach((b, i) => {
+      const up = b[4] >= b[1], x = X(i), w = Math.max(1, cw * 0.62);
+      g += `<line x1="${x}" x2="${x}" y1="${Y(b[2])}" y2="${Y(b[3])}" class="${up ? "cu" : "cd"}"/><rect x="${x - w / 2}" y="${Y(Math.max(b[1], b[4]))}" width="${w}" height="${Math.max(1, Math.abs(Y(b[1]) - Y(b[4])))}" class="${up ? "cu" : "cd"}"/>`;
+    });
+    const nodes = C.nodes.filter((nd) => at[nd.t] != null);
+    if (nodes.length > 1) g += `<polyline points="${nodes.map((nd) => `${X(at[nd.t])},${Y(nd.p)}`).join(" ")}" class="cw"/>`;
+    nodes.forEach((nd) => {
+      const x = X(at[nd.t]), y = Y(nd.p), top = nd.kind === "H";
+      const lab = nd.label === "0" ? "起點" : nd.label;
+      g += `<line x1="${x}" x2="${x}" y1="${y}" y2="${ky0 + kh}" class="cv"/><circle cx="${x}" cy="${y}" r="4" class="cn"/>`;
+      g += `<text x="${x}" y="${y + (top ? -20 : 30)}" class="cl" text-anchor="middle">${lab}</text><text x="${x}" y="${y + (top ? -7 : 43)}" class="cp" text-anchor="middle">${fmt(nd.p)}</text>`;
+      if (nd.kd) { const ky = KY(nd.kd.k); g += `<circle cx="${x}" cy="${ky}" r="5" class="${nd.kd.ok ? "kok" : "kno"}"/><text x="${x + 7}" y="${ky + (nd.kind === "H" ? 14 : -6)}" class="${nd.kd.ok ? "kokt" : "knot"}">${nd.kd.ok ? "✓" : "✗"} K${Math.round(nd.kd.k)}</text>`; }
+    });
+    const lx = X(n - 1), ly = Y(last);
+    g += `<circle cx="${lx}" cy="${ly}" r="4" class="cnow"/><text x="${lx - 6}" y="${ly - 8}" class="cp" text-anchor="end">現價 ${fmt(last)}</text>`;
+    if (PJ.length) {
+      const step = (fut - 20) / PJ.length;
+      const pts = [[lx, ly], ...PJ.map((p, i) => [lx + step * (i + 1), Y(p[1])])];
+      g += `<polyline points="${pts.map((q) => q.join(",")).join(" ")}" class="cj"/>`;
+      PJ.forEach((p, i) => { const x = lx + step * (i + 1), y = Y(p[1]), up = p[1] >= (i ? PJ[i - 1][1] : last);
+        g += `<circle cx="${x}" cy="${y}" r="3.5" class="cjp"/><text x="${x}" y="${y + (up ? -18 : 22)}" class="cjl" text-anchor="middle">${esc(p[0])}</text><text x="${x}" y="${y + (up ? -6 : 34)}" class="cjv" text-anchor="middle">${fmt(p[1])}</text>`; });
+      g += `<text x="${lx + 10}" y="${pt - 6}" class="cjv">推估走勢 →</text>`;
+    }
+    // KD 區
+    g += `<rect x="${pl}" y="${ky0}" width="${W - pl - pr}" height="${kh}" class="kbg"/>`;
+    [80, 50, 20].forEach((v) => { g += `<line x1="${pl}" x2="${W - pr}" y1="${KY(v)}" y2="${KY(v)}" class="${v === 50 ? "cg" : "kgl"}"/><text x="${W - pr + 4}" y="${KY(v) + 4}" class="ct">${v}</text>`; });
+    const line = (j) => KD.map((r, i) => `${X(i)},${KY(r[j])}`).join(" ");
+    g += `<polyline points="${line(0)}" class="kk"/><polyline points="${line(1)}" class="kdl"/><text x="${pl + 4}" y="${ky0 + 12}" class="ct">KD(9,3,3)　<tspan class="kkt">K</tspan>　<tspan class="kdt">D</tspan></text>`;
+    const tl = (i) => esc(String(B[i][0]).slice(5).replace("-", "/"));
+    g += `<text x="${X(0)}" y="${H - 6}" class="ct">${tl(0)}</text><text x="${X(n - 1)}" y="${H - 6}" class="ct" text-anchor="end">${tl(n - 1)}</text>`;
+    return `<div class="cnt-fig"><svg viewBox="0 0 ${W} ${H}" class="cnt-svg" role="img" aria-label="數浪圖">${g}</svg></div>`;
+  }
   function countHtml(P) {
     const C = P.count;
     if (!C || !C.waves || !C.waves.length) return "";
@@ -805,6 +854,7 @@
     }
     const okN = C.nodes.filter((n) => n.kd && n.kd.ok).length;
     return `<div class="st-head"><h3>數浪分析（${tf}，從起點開始）</h3><small>${esc(C.trend || "")}｜轉折點 KD 配合 ${okN}／${C.nodes.length}</small></div>
+      ${countFigure(P)}
       <div class="cnt-wrap"><table class="cnt-t"><thead><tr><th>浪</th><th>時間</th><th class="r">價位</th><th class="r">幅度</th><th class="r">K 棒數</th><th>比例</th><th>轉折點 KD(9,3,3)</th></tr></thead>
       <tbody><tr><td><b>起點</b></td><td>${ts(n0.t)}</td><td class="r">${fp(n0.p)}</td><td></td><td></td><td>${n0.kind === "L" ? "波段低點" : "波段高點"}</td><td>${kdc(n0)}</td></tr>${rows}${cur}${est}</tbody></table></div>
       <p class="hint">KD 配合：低點要 K ≤ 30 或低檔黃金交叉，高點要 K ≥ 70 或高檔死亡交叉（轉折點前 2 根到後 3 根內）。比例：第 2、4 浪看回檔前一浪幾 %，第 3、5 浪看是第 1 浪的幾倍。「推估」列是依布局同一套比例機械推算（第 2 浪回 0.618、第 4 浪回 0.382、3／5 浪以第 1 浪延伸、ABC 回整段 0.382），實際走出來後每次重算。</p>`;
