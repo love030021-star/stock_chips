@@ -51,8 +51,12 @@ jobs:
             echo "沒有變動"
           else
             git commit -m "TV 資料重算 $(TZ=Asia/Taipei date '+%F %H:%M')"
-            git pull --rebase -X theirs origin main || true
-            git push
+            # 5 分布局常駐流程每 5 分鐘也會推，撞到就重抓再推（最多 5 次）
+            for i in 1 2 3 4 5; do
+              git pull -q --rebase -X theirs origin main || { git rebase --abort; git reset -q --soft origin/main; git commit -qm "TV 資料重算 $(TZ=Asia/Taipei date '+%F %H:%M')"; }
+              git push -q && break
+              sleep $((i * 7))
+            done
           fi
 
       - uses: actions/configure-pages@v5
