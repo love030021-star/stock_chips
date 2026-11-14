@@ -1,0 +1,32 @@
+name: 每日牆參數（只抓資料，不動網站）
+on:
+  schedule:
+    # 台北時間週一到週五 16:43、17:13（期交所公布選擇權未平倉後）
+    - cron: "43 8 * * 1-5"
+    - cron: "13 9 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: walls
+  cancel-in-progress: false
+jobs:
+  walls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python bt/daily_walls.py
+      - name: 推到 walls 分支
+        run: |
+          git fetch -q origin walls || true
+          mkdir -p w && cd w && git init -q && git checkout -q -b walls
+          git fetch -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" walls && git reset -q --hard FETCH_HEAD || true
+          cp ../walls_out/latest.json latest.json
+          D=$(python -c "import json;print(json.load(open('latest.json'))['date'])")
+          mkdir -p days && cp latest.json days/$D.json
+          git add . && git -c user.name=bot -c user.email=b@b commit -qm "牆參數 $D" || echo 沒有變動
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" walls
