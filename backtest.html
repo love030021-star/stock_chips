@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>最近的牆假突破｜策略回測</title>
+<meta name="description" content="台指期 5 分 K，選擇權大量牆的假跌破做多、假突破做空策略，XQ 全盤回測結果與每筆明細。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@900&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=20261114bt">
+<style>
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 48px}
+.sub{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}
+.kp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.kl{font-size:13px;color:var(--muted)} .kv{font-size:26px;font-weight:600;margin-top:2px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin:14px 0;overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th,table.t td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t th{color:var(--muted);font-weight:500}
+table.t tr.hl td{font-weight:600;background:var(--tag)}
+td.nt{text-align:left!important;color:var(--muted);font-size:12px}
+svg.eq{width:100%;height:auto;display:block}
+svg.eq text{font:11px var(--num);fill:var(--muted)}
+svg.eq .g{stroke:var(--line);stroke-width:1} svg.eq .g.z{stroke:var(--muted)}
+svg.eq .ln{fill:none;stroke:var(--s2);stroke-width:2;stroke-linejoin:round}
+svg.eq .dot{fill:var(--s2)}
+.rules li+li{margin-top:4px}
+.back{display:inline-block;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="notice" role="note">本站不是證券或期貨投資顧問，回測結果只供研究，不構成投資建議；過去表現不代表未來績效。<a href="index.html#disclaimer">完整聲明</a></div>
+<nav class="tabs" aria-label="頁面區塊">
+  <a href="index.html#strategy">波段布局</a>
+  <a href="index.html#livechips">盤中籌碼</a>
+  <a href="index.html#chips">選擇權籌碼</a>
+  <a href="backtest.html" class="on">策略回測</a>
+</nav>
+<header class="hero">
+  <p class="hero-date">XQ 回測期間 2025/12/8～2026/11/13・台指期全盤 5 分 K（日盤＋夜盤）・一口</p>
+  <h1 class="hero-title"><span>最近</span><span>的牆</span><span>假突破</span></h1>
+  <p class="hero-lede">用週選未平倉 2,000 口以上的履約價當「牆」：跌破 Put 牆又站回就做多，突破 Call 牆又跌回就做空；賺到 100 點後改用移動停利，抱到行情結束。</p>
+</header>
+<main class="wrap">
+  <div class="kpis"><div class="kp"><div class="kl">總點數（每口）</div><div class="kv num up">+1,746</div></div><div class="kp"><div class="kl">交易筆數</div><div class="kv num ">48</div></div><div class="kp"><div class="kl">勝率</div><div class="kv num ">60%</div></div><div class="kp"><div class="kl">獲利因子</div><div class="kv num ">1.69</div></div><div class="kp"><div class="kl">最大回落</div><div class="kv num down">-466</div></div><div class="kp"><div class="kl">平均每筆</div><div class="kv num up">+36</div></div></div>
+
+  <section class="block">
+    <h2>累計點數</h2>
+    <p class="sub">每筆交易後的累計點數（每口，已扣手續費）。微台 1 點 = 10 元，大台 1 點 = 200 元。</p>
+    <div class="card"><svg viewBox="0 0 760 240" class="eq" role="img" aria-label="累計點數曲線：48 筆交易後累計 +1,746 點"><line x1="48" x2="748" y1="212.0" y2="212.0" class="g"/><text x="42" y="216.0" text-anchor="end">-250</text><line x1="48" x2="748" y1="192.2" y2="192.2" class="g z"/><text x="42" y="196.2" text-anchor="end">0</text><line x1="48" x2="748" y1="172.4" y2="172.4" class="g"/><text x="42" y="176.4" text-anchor="end">250</text><line x1="48" x2="748" y1="152.6" y2="152.6" class="g"/><text x="42" y="156.6" text-anchor="end">500</text><line x1="48" x2="748" y1="132.8" y2="132.8" class="g"/><text x="42" y="136.8" text-anchor="end">750</text><line x1="48" x2="748" y1="113.0" y2="113.0" class="g"/><text x="42" y="117.0" text-anchor="end">1,000</text><line x1="48" x2="748" y1="93.2" y2="93.2" class="g"/><text x="42" y="97.2" text-anchor="end">1,250</text><line x1="48" x2="748" y1="73.4" y2="73.4" class="g"/><text x="42" y="77.4" text-anchor="end">1,500</text><line x1="48" x2="748" y1="53.6" y2="53.6" class="g"/><text x="42" y="57.6" text-anchor="end">1,750</text><line x1="48" x2="748" y1="33.8" y2="33.8" class="g"/><text x="42" y="37.8" text-anchor="end">2,000</text><line x1="48" x2="748" y1="14.0" y2="14.0" class="g"/><text x="42" y="18.0" text-anchor="end">2,250</text><text x="62.6" y="232" text-anchor="middle">12月</text><text x="77.2" y="232" text-anchor="middle">1月</text><text x="193.8" y="232" text-anchor="middle">2月</text><text x="266.8" y="232" text-anchor="middle">3月</text><text x="325.1" y="232" text-anchor="middle">4月</text><text x="398.0" y="232" text-anchor="middle">5月</text><text x="485.5" y="232" text-anchor="middle">6月</text><text x="529.2" y="232" text-anchor="middle">7月</text><text x="543.8" y="232" text-anchor="middle">8月</text><text x="573.0" y="232" text-anchor="middle">9月</text><text x="616.8" y="232" text-anchor="middle">10月</text><text x="660.5" y="232" text-anchor="middle">11月</text><path d="M48.0,192.2 L62.6,188.2 L77.2,166.7 L91.8,159.5 L106.3,165.9 L120.9,153.1 L135.5,162.3 L150.1,156.3 L164.7,160.8 L179.2,155.7 L193.8,164.0 L208.4,171.1 L223.0,181.2 L237.6,189.9 L252.2,159.3 L266.8,130.4 L281.3,137.3 L295.9,128.1 L310.5,119.2 L325.1,113.4 L339.7,99.4 L354.2,115.1 L368.8,108.8 L383.4,82.7 L398.0,82.0 L412.6,81.8 L427.2,83.2 L441.8,81.9 L456.3,69.0 L470.9,87.3 L485.5,104.5 L500.1,84.3 L514.7,105.9 L529.2,90.3 L543.8,102.2 L558.4,96.1 L573.0,98.8 L587.6,84.7 L602.2,92.6 L616.8,91.8 L631.3,81.4 L645.9,66.9 L660.5,61.7 L675.1,50.0 L689.7,30.6 L704.2,35.9 L718.8,18.2 L733.4,29.9 L748.0,53.9" class="ln"/><circle cx="748.0" cy="53.9" r="3.5" class="dot"/></svg></div>
+  </section>
+
+  <section class="block">
+    <h2>多空拆開看</h2>
+    <div class="card"><table class="t">
+      <tr><th></th><th>筆數</th><th>勝率</th><th>總點數</th><th>獲利因子</th><th>平均每筆</th><th>最大單筆獲利</th><th>最大單筆虧損</th></tr>
+      <tr><td>做多（SP 假跌破）</td><td class="num">19</td><td class="num">74%</td><td class="num up">+1,925</td><td class="num">5.56</td><td class="num">+101</td><td class="num up">+387</td><td class="num down">-117</td></tr>
+      <tr><td>做空（SC 假突破）</td><td class="num">29</td><td class="num">52%</td><td class="num down">-179</td><td class="num">0.91</td><td class="num">-6</td><td class="num up">+330</td><td class="num down">-303</td></tr>
+    </table></div>
+  </section>
+
+  <section class="block">
+    <h2>出場方式比較</h2>
+    <p class="sub">進場與停損規則相同，只換出場方式（XQ 同一段期間，換算每口點數）。</p>
+    <div class="card"><table class="t">
+      <tr><th>出場方式</th><th>總點數</th><th>勝率</th><th>獲利因子</th><th>最大回落</th></tr>
+      <tr class="hl"><td>賺 100 點後移動停利，回吐 100 點出場（現用）</td><td class="num up">+1,746</td><td class="num">60%</td><td class="num">1.69</td><td class="num down">-466</td></tr>
+      <tr><td>100 點出一半、200 點全出（兩口）</td><td class="num up">+1,416</td><td class="num">69%</td><td class="num">1.50</td><td class="num down">約 −617</td></tr>
+      <tr><td>一口、固定停利 200 點</td><td class="num up">+1,339</td><td class="num">50%</td><td class="num">1.34</td><td class="num down">約 −850</td></tr>
+    </table></div>
+  </section>
+
+  <section class="block">
+    <h2>每月結果</h2>
+    <div class="card"><table class="t"><tr><th>月份</th><th>筆數</th><th>獲利筆數</th><th>點數</th></tr><tr><td>2025/12</td><td class="num">1</td><td class="num">1</td><td class="num up">+51</td></tr><tr><td>2026/01</td><td class="num">8</td><td class="num">5</td><td class="num up">+410</td></tr><tr><td>2026/02</td><td class="num">5</td><td class="num">1</td><td class="num down">-45</td></tr><tr><td>2026/03</td><td class="num">4</td><td class="num">3</td><td class="num up">+506</td></tr><tr><td>2026/04</td><td class="num">5</td><td class="num">4</td><td class="num up">+461</td></tr><tr><td>2026/05</td><td class="num">6</td><td class="num">4</td><td class="num down">-58</td></tr><tr><td>2026/06</td><td class="num">3</td><td class="num">1</td><td class="num down">-235</td></tr><tr><td>2026/07</td><td class="num">1</td><td class="num">1</td><td class="num up">+197</td></tr><tr><td>2026/08</td><td class="num">2</td><td class="num">1</td><td class="num down">-73</td></tr><tr><td>2026/09</td><td class="num">3</td><td class="num">1</td><td class="num up">+44</td></tr><tr><td>2026/10</td><td class="num">3</td><td class="num">3</td><td class="num up">+324</td></tr><tr><td>2026/11</td><td class="num">7</td><td class="num">4</td><td class="num up">+164</td></tr></table></div>
+  </section>
+
+  <section class="block prose">
+    <h2>策略規則</h2>
+    <ul class="rules">
+      <li><b>牆：</b>每天盤後，最近到期週選中未平倉 2,000 口以上的履約價；Put 是下方支撐（SP），Call 是上方壓力（SC），只看離現價 600 點內最近的一道。當天 16:30 後才換用新的牆。</li>
+      <li><b>做多：</b>5 分 K 跌破 SP 50～300 點後，30 分鐘（6 根 K）內收盤站回 SP，下一根市價進場。跌破超過 300 點視為真跌破，不做。</li>
+      <li><b>做空：</b>突破 SC 50～300 點後，30 分鐘內收盤跌回 SC，市價放空。</li>
+      <li><b>停損：</b>假跌破最低點下 20 點；假突破最高點上 20 點。</li>
+      <li><b>出場：</b>賺到 100 點後啟動移動停利，從最有利價回吐 100 點出場；日盤 13:40、夜盤 04:55 前一律平倉。</li>
+      <li><b>不開新倉：</b>日盤 13:15 後、夜盤 04:30 後。</li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <h2>每筆交易明細</h2>
+    <p class="sub">點數為每口、已扣手續費。4 筆 XQ 回測跨過收盤才出場的單，已依當天日盤收盤價改成收盤平倉。</p>
+    <div class="card"><table class="t">
+      <tr><th>#</th><th>方向</th><th>進場時間</th><th>進場價</th><th>出場時間</th><th>出場價</th><th>點數</th><th>累計</th><th>備註</th></tr>
+      <tr><td class="num">1</td><td class="down">做空</td><td class="num">25/12/09 09:10</td><td class="num">28,272</td><td class="num">25/12/09 13:45</td><td class="num">28,220</td><td class="num up">+51</td><td class="num">+51</td><td class="nt">收盤平倉（修正）</td></tr><tr><td class="num">2</td><td class="up">做多</td><td class="num">26/01/09 09:50</td><td class="num">30,251</td><td class="num">26/01/09 11:00</td><td class="num">30,523</td><td class="num up">+271</td><td class="num">+322</td><td class="nt"></td></tr><tr><td class="num">3</td><td class="down">做空</td><td class="num">26/01/13 09:00</td><td class="num">31,101</td><td class="num">26/01/13 09:10</td><td class="num">31,009</td><td class="num up">+91</td><td class="num">+413</td><td class="nt"></td></tr><tr><td class="num">4</td><td class="down">做空</td><td class="num">26/01/13 11:35</td><td class="num">30,794</td><td class="num">26/01/13 13:45</td><td class="num">30,874</td><td class="num down">-81</td><td class="num">+332</td><td class="nt">收盤平倉（修正）</td></tr><tr><td class="num">5</td><td class="up">做多</td><td class="num">26/01/20 09:15</td><td class="num">31,507</td><td class="num">26/01/20 11:10</td><td class="num">31,670</td><td class="num up">+162</td><td class="num">+494</td><td class="nt"></td></tr><tr><td class="num">6</td><td class="up">做多</td><td class="num">26/01/20 15:05</td><td class="num">31,508</td><td class="num">26/01/20 17:05</td><td class="num">31,392</td><td class="num down">-117</td><td class="num">+377</td><td class="nt"></td></tr><tr><td class="num">7</td><td class="up">做多</td><td class="num">26/01/21 09:15</td><td class="num">31,460</td><td class="num">26/01/21 10:00</td><td class="num">31,537</td><td class="num up">+76</td><td class="num">+453</td><td class="nt"></td></tr><tr><td class="num">8</td><td class="down">做空</td><td class="num">26/01/27 09:00</td><td class="num">32,286</td><td class="num">26/01/27 09:50</td><td class="num">32,341</td><td class="num down">-56</td><td class="num">+397</td><td class="nt"></td></tr><tr><td class="num">9</td><td class="up">做多</td><td class="num">26/01/30 10:50</td><td class="num">32,223</td><td class="num">26/01/30 11:20</td><td class="num">32,288</td><td class="num up">+64</td><td class="num">+461</td><td class="nt"></td></tr><tr><td class="num">10</td><td class="down">做空</td><td class="num">26/02/03 10:30</td><td class="num">32,058</td><td class="num">26/02/03 11:00</td><td class="num">32,162</td><td class="num down">-105</td><td class="num">+356</td><td class="nt"></td></tr><tr><td class="num">11</td><td class="up">做多</td><td class="num">26/02/04 01:25</td><td class="num">32,014</td><td class="num">26/02/04 01:40</td><td class="num">31,925</td><td class="num down">-90</td><td class="num">+266</td><td class="nt"></td></tr><tr><td class="num">12</td><td class="down">做空</td><td class="num">26/02/04 10:25</td><td class="num">32,297</td><td class="num">26/02/04 13:45</td><td class="num">32,423</td><td class="num down">-127</td><td class="num">+139</td><td class="nt">收盤平倉（修正）</td></tr><tr><td class="num">13</td><td class="up">做多</td><td class="num">26/02/06 08:50</td><td class="num">31,509</td><td class="num">26/02/06 09:05</td><td class="num">31,400</td><td class="num down">-110</td><td class="num">+29</td><td class="nt"></td></tr><tr><td class="num">14</td><td class="up">做多</td><td class="num">26/02/06 09:40</td><td class="num">31,418</td><td class="num">26/02/06 10:45</td><td class="num">31,806</td><td class="num up">+387</td><td class="num">+416</td><td class="nt"></td></tr><tr><td class="num">15</td><td class="up">做多</td><td class="num">26/03/09 16:25</td><td class="num">31,975</td><td class="num">26/03/09 17:50</td><td class="num">32,340</td><td class="num up">+364</td><td class="num">+780</td><td class="nt"></td></tr><tr><td class="num">16</td><td class="up">做多</td><td class="num">26/03/12 22:45</td><td class="num">32,815</td><td class="num">26/03/12 22:55</td><td class="num">32,729</td><td class="num down">-87</td><td class="num">+693</td><td class="nt"></td></tr><tr><td class="num">17</td><td class="up">做多</td><td class="num">26/03/13 16:35</td><td class="num">32,818</td><td class="num">26/03/13 17:00</td><td class="num">32,935</td><td class="num up">+116</td><td class="num">+809</td><td class="nt"></td></tr><tr><td class="num">18</td><td class="up">做多</td><td class="num">26/03/19 21:50</td><td class="num">33,060</td><td class="num">26/03/19 22:20</td><td class="num">33,174</td><td class="num up">+113</td><td class="num">+922</td><td class="nt"></td></tr><tr><td class="num">19</td><td class="down">做空</td><td class="num">26/04/21 09:15</td><td class="num">37,840</td><td class="num">26/04/21 09:25</td><td class="num">37,766</td><td class="num up">+73</td><td class="num">+995</td><td class="nt"></td></tr><tr><td class="num">20</td><td class="down">做空</td><td class="num">26/04/21 22:25</td><td class="num">37,982</td><td class="num">26/04/21 23:10</td><td class="num">37,804</td><td class="num up">+177</td><td class="num">+1,172</td><td class="nt"></td></tr><tr><td class="num">21</td><td class="down">做空</td><td class="num">26/04/22 09:00</td><td class="num">37,963</td><td class="num">26/04/22 09:30</td><td class="num">38,160</td><td class="num down">-198</td><td class="num">+974</td><td class="nt"></td></tr><tr><td class="num">22</td><td class="down">做空</td><td class="num">26/04/22 11:45</td><td class="num">38,297</td><td class="num">26/04/22 13:20</td><td class="num">38,217</td><td class="num up">+79</td><td class="num">+1,053</td><td class="nt"></td></tr><tr><td class="num">23</td><td class="down">做空</td><td class="num">26/04/24 10:05</td><td class="num">38,956</td><td class="num">26/04/24 10:35</td><td class="num">38,625</td><td class="num up">+330</td><td class="num">+1,383</td><td class="nt"></td></tr><tr><td class="num">24</td><td class="up">做多</td><td class="num">26/05/13 01:05</td><td class="num">40,834</td><td class="num">26/05/13 01:30</td><td class="num">40,844</td><td class="num up">+9</td><td class="num">+1,392</td><td class="nt"></td></tr><tr><td class="num">25</td><td class="up">做多</td><td class="num">26/05/20 09:45</td><td class="num">40,245</td><td class="num">26/05/20 10:30</td><td class="num">40,248</td><td class="num up">+2</td><td class="num">+1,394</td><td class="nt"></td></tr><tr><td class="num">26</td><td class="up">做多</td><td class="num">26/05/20 12:00</td><td class="num">40,065</td><td class="num">26/05/20 12:35</td><td class="num">40,048</td><td class="num down">-18</td><td class="num">+1,376</td><td class="nt"></td></tr><tr><td class="num">27</td><td class="down">做空</td><td class="num">26/05/22 08:55</td><td class="num">41,925</td><td class="num">26/05/22 09:10</td><td class="num">41,907</td><td class="num up">+17</td><td class="num">+1,393</td><td class="nt"></td></tr><tr><td class="num">28</td><td class="down">做空</td><td class="num">26/05/27 09:30</td><td class="num">44,974</td><td class="num">26/05/27 09:45</td><td class="num">44,810</td><td class="num up">+163</td><td class="num">+1,556</td><td class="nt"></td></tr><tr><td class="num">29</td><td class="down">做空</td><td class="num">26/05/29 09:50</td><td class="num">44,908</td><td class="num">26/05/29 10:10</td><td class="num">45,138</td><td class="num down">-231</td><td class="num">+1,325</td><td class="nt"></td></tr><tr><td class="num">30</td><td class="down">做空</td><td class="num">26/06/15 22:00</td><td class="num">45,906</td><td class="num">26/06/15 23:45</td><td class="num">46,123</td><td class="num down">-218</td><td class="num">+1,107</td><td class="nt"></td></tr><tr><td class="num">31</td><td class="up">做多</td><td class="num">26/06/17 04:05</td><td class="num">45,026</td><td class="num">26/06/17 08:55</td><td class="num">45,282</td><td class="num up">+255</td><td class="num">+1,362</td><td class="nt">夜盤收盤無資料，沿用 XQ 出場</td></tr><tr><td class="num">32</td><td class="down">做空</td><td class="num">26/06/22 09:55</td><td class="num">47,921</td><td class="num">26/06/22 10:10</td><td class="num">48,192</td><td class="num down">-272</td><td class="num">+1,090</td><td class="nt"></td></tr><tr><td class="num">33</td><td class="up">做多</td><td class="num">26/07/29 09:20</td><td class="num">41,219</td><td class="num">26/07/29 09:30</td><td class="num">41,417</td><td class="num up">+197</td><td class="num">+1,287</td><td class="nt"></td></tr><tr><td class="num">34</td><td class="down">做空</td><td class="num">26/08/04 21:30</td><td class="num">43,942</td><td class="num">26/08/04 21:45</td><td class="num">44,092</td><td class="num down">-151</td><td class="num">+1,136</td><td class="nt"></td></tr><tr><td class="num">35</td><td class="down">做空</td><td class="num">26/08/17 18:40</td><td class="num">45,995</td><td class="num">26/08/17 21:45</td><td class="num">45,916</td><td class="num up">+78</td><td class="num">+1,214</td><td class="nt"></td></tr><tr><td class="num">36</td><td class="down">做空</td><td class="num">26/09/09 09:55</td><td class="num">47,480</td><td class="num">26/09/09 10:15</td><td class="num">47,514</td><td class="num down">-35</td><td class="num">+1,179</td><td class="nt"></td></tr><tr><td class="num">37</td><td class="down">做空</td><td class="num">26/09/16 12:10</td><td class="num">45,988</td><td class="num">26/09/16 12:55</td><td class="num">45,809</td><td class="num up">+178</td><td class="num">+1,357</td><td class="nt"></td></tr><tr><td class="num">38</td><td class="down">做空</td><td class="num">26/09/23 09:05</td><td class="num">48,493</td><td class="num">26/09/23 09:15</td><td class="num">48,591</td><td class="num down">-99</td><td class="num">+1,258</td><td class="nt"></td></tr><tr><td class="num">39</td><td class="down">做空</td><td class="num">26/10/07 13:15</td><td class="num">49,990</td><td class="num">26/10/07 13:45</td><td class="num">49,979</td><td class="num up">+10</td><td class="num">+1,268</td><td class="nt">收盤平倉（修正）</td></tr><tr><td class="num">40</td><td class="down">做空</td><td class="num">26/10/21 09:40</td><td class="num">47,200</td><td class="num">26/10/21 10:25</td><td class="num">47,068</td><td class="num up">+131</td><td class="num">+1,399</td><td class="nt"></td></tr><tr><td class="num">41</td><td class="up">做多</td><td class="num">26/10/30 09:30</td><td class="num">45,109</td><td class="num">26/10/30 09:50</td><td class="num">45,293</td><td class="num up">+183</td><td class="num">+1,582</td><td class="nt"></td></tr><tr><td class="num">42</td><td class="down">做空</td><td class="num">26/11/03 04:30</td><td class="num">44,463</td><td class="num">26/11/03 04:50</td><td class="num">44,396</td><td class="num up">+66</td><td class="num">+1,648</td><td class="nt"></td></tr><tr><td class="num">43</td><td class="up">做多</td><td class="num">26/11/03 15:45</td><td class="num">43,028</td><td class="num">26/11/03 16:15</td><td class="num">43,177</td><td class="num up">+148</td><td class="num">+1,796</td><td class="nt"></td></tr><tr><td class="num">44</td><td class="down">做空</td><td class="num">26/11/03 21:35</td><td class="num">43,980</td><td class="num">26/11/03 22:30</td><td class="num">43,735</td><td class="num up">+244</td><td class="num">+2,040</td><td class="nt"></td></tr><tr><td class="num">45</td><td class="down">做空</td><td class="num">26/11/10 09:50</td><td class="num">42,828</td><td class="num">26/11/10 10:00</td><td class="num">42,894</td><td class="num down">-67</td><td class="num">+1,973</td><td class="nt"></td></tr><tr><td class="num">46</td><td class="down">做空</td><td class="num">26/11/10 23:15</td><td class="num">42,971</td><td class="num">26/11/10 23:25</td><td class="num">42,746</td><td class="num up">+224</td><td class="num">+2,197</td><td class="nt"></td></tr><tr><td class="num">47</td><td class="down">做空</td><td class="num">26/11/11 15:40</td><td class="num">43,984</td><td class="num">26/11/11 16:10</td><td class="num">44,131</td><td class="num down">-148</td><td class="num">+2,049</td><td class="nt"></td></tr><tr><td class="num">48</td><td class="down">做空</td><td class="num">26/11/13 08:50</td><td class="num">43,938</td><td class="num">26/11/13 09:05</td><td class="num">44,240</td><td class="num down">-303</td><td class="num">+1,746</td><td class="nt"></td></tr>
+    </table></div>
+  </section>
+
+  <section class="block prose">
+    <h2>限制與注意</h2>
+    <ul>
+      <li>樣本只有 11 個月、48 筆；做空一邊的獲利因子小於 1，結果仍可能隨期間改變。</li>
+      <li>回測用 5 分 K 高低點判斷停損與移動停利，實際盤中會有滑價；市價單成交價可能和回測不同。</li>
+      <li>回測資料是台指期近月全盤（FITXN*1）；實際用微台下單時點數相同，但每點金額不同。</li>
+      <li>各履約價未平倉資料取自期交所選擇權每日行情（2025/12/8 起）。</li>
+    </ul>
+    <a class="back" href="index.html">← 回首頁</a>
+  </section>
+</main>
+<footer class="foot"><p>波浪籌碼日報・策略回測。資料更新：2026/11/14。</p></footer>
+</body>
+</html>
