@@ -68,7 +68,11 @@ def main():
     d, prev = days[-1], (days[-2] if len(days) > 1 else None)
     fut = txf.fetch_daily_range(start, today)
     close = fut[d][3] if d in fut else None
-    inst = chips.parse_inst(chips._post("/cht/3/callsAndPutsDateDown", {"queryStartDate": s, "queryEndDate": e, "commodityId": "TXO"}))
+    inst = {}
+    try:
+        inst = chips.parse_inst(chips._post("/cht/3/callsAndPutsDateDown", {"queryStartDate": s, "queryEndDate": d.replace("-", "/"), "commodityId": "TXO"}))
+    except Exception as ex:  # noqa: BLE001
+        print("法人資料失敗", ex)
     d0 = d.replace("-", "")
     live = sorted([(k, v) for k, v in S[d].items() if v["exp"] > d0], key=lambda kv: kv[1]["exp"])
     if close is None:
