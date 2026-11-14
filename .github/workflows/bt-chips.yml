@@ -1,0 +1,23 @@
+name: 回測用：補抓歷史選擇權籌碼
+on:
+  workflow_dispatch:
+    inputs:
+      start: { description: "開始日", default: "2024-09-01" }
+      end: { description: "結束日", default: "2026-11-13" }
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python bt/fetch_chips_hist.py ${{ github.event.inputs.start }} ${{ github.event.inputs.end }}
+      - name: 推到 bt-data 分支
+        run: |
+          cd bt_out && git init -q && git checkout -q -b bt-data && git add . \
+          && git -c user.name=bot -c user.email=b@b commit -qm "歷史籌碼" \
+          && git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" bt-data
