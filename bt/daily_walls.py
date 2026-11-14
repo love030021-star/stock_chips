@@ -90,8 +90,10 @@ def chip_dir(days, large, inst, fut, rows_by_day, closes):
             if cand:
                 pain = max(cand, key=pnl)
                 parts["pain"] = 1 if px < pain - 200 else -1 if px > pain + 200 else 0
-        score = sum(parts.values())
-        res = {"date": d, "score": score, "parts": parts, "dir": 1 if score >= 2 else -1 if score <= -2 else 0}
+        # 加強版回測用的方向：外資台指期未平倉、外資選擇權淨額的日增減（±1000 口）同向才算偏多／偏空
+        score = parts.get("fut", 0) + parts.get("opt", 0)
+        res = {"date": d, "score": score, "parts": parts, "dir": 1 if score >= 2 else -1 if score <= -2 else 0,
+               "fut_net": cur["fut"], "opt_net": cur["opt"]}
         prev = cur
     return res
 
